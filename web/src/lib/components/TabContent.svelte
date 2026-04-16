@@ -1,7 +1,15 @@
 <script lang="ts">
-	import { api, type ColumnInfo, type Connection, type RowSet, type TableInfo } from '$lib/api';
+	import {
+		api,
+		type ColumnInfo,
+		type Connection,
+		type ConnectionInput,
+		type RowSet,
+		type TableInfo
+	} from '$lib/api';
 	import { tabs } from '$lib/stores/tabs.svelte';
 	import { colorHex } from '$lib/colors';
+	import ConnectionForm from './ConnectionForm.svelte';
 	import RowGrid from './RowGrid.svelte';
 	import QueryView from './QueryView.svelte';
 
@@ -144,6 +152,36 @@
 	let dbMenuOpen = $state(false);
 	let dbMenuEl = $state<HTMLElement | null>(null);
 
+	let editing = $state(false);
+	let editError = $state<string | null>(null);
+
+	$effect(() => {
+		if (!editing) return;
+		const onKey = (e: KeyboardEvent) => {
+			if (e.key === 'Escape') editing = false;
+		};
+		window.addEventListener('keydown', onKey);
+		return () => window.removeEventListener('keydown', onKey);
+	});
+
+	async function onSaveEdit(input: ConnectionInput) {
+		editError = null;
+		const updated = await api.connections.update(connectionId, input);
+		conn = updated;
+		tabs.update(tabId, { label: updated.name, color: updated.color ?? null });
+		editing = false;
+		// Drop the active MySQL session so the next request uses the new settings
+		await api.sessions.close(connectionId).catch(() => {});
+		loadDatabases(connectionId);
+	}
+
+	async function onDeleteEdit() {
+		editError = null;
+		await api.connections.delete(connectionId);
+		editing = false;
+		tabs.close(tabId);
+	}
+
 	$effect(() => {
 		if (!dbMenuOpen) return;
 		const onDocClick = (e: MouseEvent) => {
@@ -165,7 +203,7 @@
 
 <div class="flex h-full bg-cream">
 	<aside class="flex w-[260px] shrink-0 flex-col border-r border-rule bg-cream-soft">
-		<header class="border-b border-rule px-4 py-4">
+		<header class="group/conn relative border-b border-rule px-4 py-4">
 			{#if conn}
 				{@const swatch = colorHex(conn.color)}
 				<div class="flex items-center gap-2.5">
@@ -186,6 +224,12 @@
 				{#if conn.folder}
 					<div class="mt-0.5 font-mono text-[10px] text-ink-ghost">{conn.folder}</div>
 				{/if}
+				<button
+					class="absolute top-3 right-3 cursor-pointer rounded px-1.5 py-0.5 text-[10px] tracking-widest text-ink-faint uppercase opacity-0 transition-opacity hover:bg-cream-deep hover:text-ink group-hover/conn:opacity-100"
+					onclick={() => (editing = true)}
+				>
+					edit
+				</button>
 			{:else if connErr}
 				<pre class="font-mono text-[11px] whitespace-pre-wrap text-crimson">{connErr}</pre>
 			{:else}
@@ -411,3 +455,42 @@
 		{/if}
 	</main>
 </div>
+
+{#if editing && conn}
+	<div
+		class="fixed inset-0 z-50 flex items-start justify-center bg-ink/30 p-12 backdrop-blur-sm"
+		onclick={() => (editing = false)}
+		role="presentation"
+	>
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<div
+			class="max-h-[80vh] w-full max-w-xl overflow-auto rounded-lg border border-rule bg-cream shadow-[0_24px_64px_-24px_rgba(26,24,20,0.35)]"
+			onclick={(e) => e.stopPropagation()}
+			role="dialog"
+			aria-modal="true"
+			tabindex="-1"
+		>
+			<div class="flex items-center justify-between border-b border-rule px-5 py-3">
+				<h2 class="text-[14px] font-medium text-ink">Edit connection</h2>
+				<button
+					class="cursor-pointer text-xl leading-none text-ink-faint transition-colors hover:text-rust"
+					onclick={() => (editing = false)}
+					aria-label="close"
+				>
+					×
+				</button>
+			</div>
+			<div class="px-5 py-4">
+				{#if editError}
+					<pre class="mb-4 rounded bg-crimson-soft p-3 font-mono text-[12px] whitespace-pre-wrap text-crimson">{editError}</pre>
+				{/if}
+				<ConnectionForm
+					initial={conn}
+					onSubmit={onSaveEdit}
+					onDelete={onDeleteEdit}
+					submitLabel="Save"
+				/>
+			</div>
+		</div>
+	</div>
+{/if}

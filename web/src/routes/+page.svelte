@@ -83,70 +83,76 @@
 
 <div class="flex h-screen flex-col">
 	<!-- chrome / tab bar -->
-	<div
-		class="flex items-end gap-1 border-b border-rule bg-cream-soft px-3 pt-3 pb-0 select-none"
-	>
+	<div class="flex items-end border-b border-rule bg-cream-soft pl-3 select-none">
 		<a
 			href="/"
-			class="mr-3 mb-1.5 leading-none whitespace-nowrap text-ink no-underline"
+			class="mr-3 mb-2 flex items-baseline leading-none whitespace-nowrap text-ink no-underline"
 			onclick={(e) => {
 				if (active) {
 					e.preventDefault();
-					tabs.activate('');
 					tabs.activeId = null;
 				}
 			}}
 		>
-			<span class="font-display text-[20px] italic">
+			<span class="font-display text-[18px] italic">
 				<span class="font-light">db</span><span class="font-medium">nyan</span>
 			</span>
-			<span class="text-rust">.</span>
+			<span class="font-display text-[18px] text-rust leading-none">.</span>
 		</a>
 
-		<div class="flex flex-1 items-end overflow-x-auto overflow-y-hidden">
+		<div class="mb-2 mr-2 h-5 w-px bg-rule"></div>
+
+		<div class="flex flex-1 items-end gap-px overflow-x-auto overflow-y-hidden pt-2 pr-2">
 			{#each tabs.tabs as t (t.id)}
 				{@const swatch = colorHex(t.color)}
+				{@const active = t.id === tabs.activeId}
 				<div
-					class="group/tab relative flex shrink-0 items-stretch rounded-t-[6px] border border-b-0 transition-colors {t.id ===
-					tabs.activeId
-						? 'border-rule bg-cream -mb-px'
-						: 'border-transparent bg-transparent hover:bg-cream/60'}"
+					class="group/tab relative flex h-9 shrink-0 items-stretch rounded-t-md border border-b-0 transition-colors {active
+						? 'z-10 -mb-px border-rule bg-cream'
+						: 'border-transparent hover:bg-cream/60'}"
 				>
+					{#if active}
+						<span
+							class="absolute top-0 right-2 left-2 h-[2px] rounded-b-sm"
+							style={swatch ? `background: ${swatch}` : ''}
+							class:bg-rust={!swatch}
+							aria-hidden="true"
+						></span>
+					{/if}
 					<button
-						class="flex cursor-pointer items-center gap-2 px-3 py-2 text-[13px] {t.id ===
-						tabs.activeId
+						class="flex cursor-pointer items-center gap-2 pr-1 pl-3 text-[12.5px] {active
 							? 'font-medium text-ink'
 							: 'text-ink-muted hover:text-ink'}"
 						onclick={() => tabs.activate(t.id)}
 					>
-						{#if swatch}
+						{#if !active && swatch}
 							<span
-								class="block h-2 w-2 shrink-0 rounded-full"
+								class="block h-1.5 w-1.5 shrink-0 rounded-full"
 								style="background: {swatch}"
 								aria-hidden="true"
 							></span>
 						{/if}
-						<span>{t.label}</span>
+						<span class="max-w-[160px] truncate" title={t.label}>{t.label}</span>
 					</button>
 					<button
-						class="mr-2 my-auto rounded-full px-1 text-[14px] leading-none text-ink-faint transition-colors hover:bg-crimson-soft hover:text-crimson {t.id ===
-						tabs.activeId
+						class="my-auto mr-1.5 grid h-5 w-5 cursor-pointer place-items-center rounded text-ink-faint transition-all hover:bg-crimson-soft hover:text-crimson {active
 							? 'opacity-100'
 							: 'opacity-0 group-hover/tab:opacity-100'}"
 						aria-label="close tab"
 						onclick={() => tabs.close(t.id)}
 					>
-						×
+						<span class="text-[13px] leading-none">×</span>
 					</button>
 				</div>
 			{/each}
 
 			<button
-				class="ml-1 mb-1.5 cursor-pointer rounded px-2 py-1 text-[13px] text-ink-faint hover:text-rust"
+				class="mb-1 ml-1 grid h-7 w-7 cursor-pointer place-items-center rounded-md text-ink-faint transition-colors hover:bg-cream-deep hover:text-rust"
 				onclick={() => (modalOpen = true)}
 				title="open a new tab"
+				aria-label="open a new tab"
 			>
-				+ new
+				<span class="text-[18px] leading-none font-light">+</span>
 			</button>
 		</div>
 	</div>
