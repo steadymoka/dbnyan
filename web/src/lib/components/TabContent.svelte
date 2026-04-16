@@ -469,6 +469,26 @@
 						<span class="text-[14px] leading-none">+</span>
 					</button>
 				</div>
+			{:else if selectedTable}
+				<div class="mx-2 h-4 w-px bg-rule" aria-hidden="true"></div>
+				<button
+					class="cursor-pointer rounded px-3 py-1 font-mono text-[10px] tracking-[0.22em] uppercase transition-colors {browseTab ===
+					'data'
+						? 'bg-cream-deep text-ink'
+						: 'text-ink-faint hover:bg-cream-soft hover:text-ink'}"
+					onclick={() => (browseTab = 'data')}
+				>
+					Data
+				</button>
+				<button
+					class="cursor-pointer rounded px-3 py-1 font-mono text-[10px] tracking-[0.22em] uppercase transition-colors {browseTab ===
+					'schema'
+						? 'bg-cream-deep text-ink'
+						: 'text-ink-faint hover:bg-cream-soft hover:text-ink'}"
+					onclick={() => (browseTab = 'schema')}
+				>
+					Schema
+				</button>
 			{/if}
 		</nav>
 
@@ -494,43 +514,21 @@
 				</div>
 			</div>
 		{:else}
-			<header class="flex items-center justify-between border-b border-rule px-5 py-2">
-				<div>
-					<div class="flex items-baseline gap-1.5 font-mono text-[14px]">
-						<span class="text-ink-faint">{selectedDb}</span>
-						<span class="text-ink-ghost">/</span>
-						<span class="font-medium text-ink">{selectedTable}</span>
+			<header class="border-b border-rule px-5 py-2">
+				<div class="flex items-baseline gap-1.5 font-mono text-[14px]">
+					<span class="text-ink-faint">{selectedDb}</span>
+					<span class="text-ink-ghost">/</span>
+					<span class="font-medium text-ink">{selectedTable}</span>
+				</div>
+				{#if browseTab === 'data' && rowSet}
+					<div class="mt-1 font-mono text-[10px] tracking-widest text-ink-faint uppercase">
+						{rowSet.returned} row{rowSet.returned === 1 ? '' : 's'} · limit {rowSet.limit}
 					</div>
-					{#if browseTab === 'data' && rowSet}
-						<div class="mt-1 font-mono text-[10px] tracking-widest text-ink-faint uppercase">
-							{rowSet.returned} row{rowSet.returned === 1 ? '' : 's'} · limit {rowSet.limit}
-						</div>
-					{:else if browseTab === 'schema' && schema}
-						<div class="mt-1 font-mono text-[10px] tracking-widest text-ink-faint uppercase">
-							{schema.length} column{schema.length === 1 ? '' : 's'}
-						</div>
-					{/if}
-				</div>
-				<div class="flex items-center gap-1">
-					<button
-						class="cursor-pointer rounded px-2.5 py-1 font-mono text-[10px] tracking-[0.22em] uppercase transition-colors {browseTab ===
-						'data'
-							? 'bg-cream-deep text-ink'
-							: 'text-ink-faint hover:bg-cream-soft hover:text-ink'}"
-						onclick={() => (browseTab = 'data')}
-					>
-						Data
-					</button>
-					<button
-						class="cursor-pointer rounded px-2.5 py-1 font-mono text-[10px] tracking-[0.22em] uppercase transition-colors {browseTab ===
-						'schema'
-							? 'bg-cream-deep text-ink'
-							: 'text-ink-faint hover:bg-cream-soft hover:text-ink'}"
-						onclick={() => (browseTab = 'schema')}
-					>
-						Schema
-					</button>
-				</div>
+				{:else if browseTab === 'schema' && schema}
+					<div class="mt-1 font-mono text-[10px] tracking-widest text-ink-faint uppercase">
+						{schema.length} column{schema.length === 1 ? '' : 's'}
+					</div>
+				{/if}
 			</header>
 
 			<div class="flex-1 overflow-auto">
