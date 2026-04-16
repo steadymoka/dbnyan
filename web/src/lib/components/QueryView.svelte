@@ -75,17 +75,21 @@
 	<div class="flex flex-1 flex-col overflow-hidden">
 		<SqlGenerator {connectionId} {database} onUseSql={setSql} />
 
-		<div class="flex items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2 text-sm">
+		<div class="flex items-center gap-3 border-b border-rule bg-cream-soft/40 px-4 py-2">
 			<button
-				class="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
+				class="cursor-pointer rounded-md bg-ink px-4 py-1.5 font-mono text-[11px] tracking-[0.18em] text-cream uppercase transition-colors hover:bg-rust disabled:cursor-not-allowed disabled:opacity-40"
 				onclick={run}
 				disabled={running || !sql.trim()}
 			>
-				{running ? 'Running…' : 'Run'}
+				{running ? '…' : 'run'}
 			</button>
-			<span class="text-xs text-gray-400">⌘⏎ to run</span>
+			<span class="font-mono text-[10px] tracking-widest text-ink-faint uppercase">
+				⌘⏎
+			</span>
 			{#if result}
-				<span class="ml-auto text-xs text-gray-500">
+				<span
+					class="ml-auto font-mono text-[10px] tracking-widest text-ink-faint uppercase"
+				>
 					{#if result.kind === 'rows'}
 						{result.returned} row{result.returned === 1 ? '' : 's'}
 					{:else}
@@ -98,18 +102,23 @@
 			{/if}
 		</div>
 
-		<div class="h-44 shrink-0 border-b border-gray-200">
+		<div class="h-44 shrink-0 border-b border-rule">
 			<SqlEditor value={sql} onChange={setSql} onSubmit={run} />
 		</div>
 
-		<div class="flex-1 overflow-auto">
+		<div class="flex-1 overflow-auto bg-cream">
 			{#if error}
-				<pre class="m-3 rounded bg-red-50 p-3 text-sm whitespace-pre-wrap text-red-700">{error}</pre>
+				<pre
+					class="m-3 rounded bg-crimson-soft p-3 font-mono text-[12px] whitespace-pre-wrap text-crimson">{error}</pre>
 			{:else if result}
 				{#if result.kind === 'rows'}
-					<RowGrid columns={result.columns} rows={result.rows} empty="(query returned no rows)" />
+					<RowGrid
+						columns={result.columns}
+						rows={result.rows}
+						empty="(query returned no rows)"
+					/>
 				{:else}
-					<div class="m-3 rounded bg-green-50 p-3 text-sm text-green-800">
+					<div class="m-3 rounded border border-moss/30 bg-moss-soft p-3 font-mono text-[12px] text-moss">
 						{result.rows_affected} row{result.rows_affected === 1 ? '' : 's'} affected
 						{#if result.last_insert_id !== 0}
 							· last_insert_id = {result.last_insert_id}
@@ -117,19 +126,21 @@
 					</div>
 				{/if}
 			{:else if !running}
-				<div class="px-4 py-3 text-sm text-gray-400">
-					write a query and press <kbd class="rounded border bg-gray-50 px-1 text-xs">⌘⏎</kbd>
+				<div class="px-5 py-4 font-mono text-[11px] text-ink-faint italic">
+					write a query and press ⌘⏎
 				</div>
 			{/if}
 		</div>
 	</div>
 
-	<aside class="flex w-72 shrink-0 flex-col border-l border-gray-200 bg-gray-50">
-		<header class="flex items-center justify-between border-b border-gray-200 px-3 py-2 text-xs">
-			<span class="tracking-wide text-gray-500 uppercase">History</span>
+	<aside class="flex w-[280px] shrink-0 flex-col border-l border-rule bg-cream-soft">
+		<header class="flex items-center justify-between border-b border-rule px-4 py-3">
+			<span class="font-mono text-[10px] tracking-[0.22em] text-ink-faint uppercase">
+				History
+			</span>
 			{#if history.length > 0}
 				<button
-					class="text-gray-400 hover:text-red-600"
+					class="cursor-pointer font-mono text-[10px] tracking-widest text-ink-faint uppercase hover:text-crimson"
 					title="clear history for this connection"
 					onclick={async () => {
 						if (!confirm('Clear all history for this connection?')) return;
@@ -143,17 +154,19 @@
 		</header>
 		<div class="flex-1 overflow-auto">
 			{#if history.length === 0}
-				<div class="px-3 py-2 text-xs text-gray-400">(no queries yet)</div>
+				<div class="px-4 py-3 font-mono text-[11px] text-ink-faint italic">
+					(no queries yet)
+				</div>
 			{:else}
 				{#each history as h (h.id)}
-					<div class="group relative border-b border-gray-100 hover:bg-white">
+					<div class="group/row relative border-b border-rule/60 hover:bg-cream">
 						<button
-							class="block w-full px-3 py-2 pr-7 text-left"
+							class="block w-full cursor-pointer px-4 py-2.5 pr-8 text-left"
 							onclick={() => loadFromHistory(h)}
 							title="click to load into editor"
 						>
-							<div class="flex items-center gap-1 text-xs text-gray-500">
-								<span class={h.success ? 'text-green-600' : 'text-red-600'}>
+							<div class="flex items-center gap-2 font-mono text-[10px] tracking-widest text-ink-faint uppercase">
+								<span class={h.success ? 'text-moss' : 'text-crimson'}>
 									{h.success ? '✓' : '✗'}
 								</span>
 								<span>{h.duration_ms}ms</span>
@@ -163,10 +176,10 @@
 									<span>· {h.rows_affected} affected</span>
 								{/if}
 							</div>
-							<div class="truncate font-mono text-xs text-gray-800">{h.sql}</div>
+							<div class="mt-0.5 truncate font-mono text-[11.5px] text-ink">{h.sql}</div>
 						</button>
 						<button
-							class="absolute top-2 right-2 text-gray-300 opacity-0 group-hover:opacity-100 hover:text-red-500"
+							class="absolute top-2.5 right-2 cursor-pointer rounded px-1 text-[14px] leading-none text-ink-faint opacity-0 transition-opacity group-hover/row:opacity-100 hover:bg-crimson-soft hover:text-crimson"
 							onclick={(e) => deleteHistory(h, e)}
 							title="delete"
 							aria-label="delete history entry"

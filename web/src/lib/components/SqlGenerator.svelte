@@ -20,7 +20,6 @@
 		error = null;
 		generated = null;
 		try {
-			// One-shot: never pass session_id, so each call is a fresh schema context.
 			const res = await api.chat.send(connectionId, { message: p, database });
 			const sql = extractSql(res.text);
 			generated = {
@@ -43,13 +42,10 @@
 	}
 
 	function extractSql(text: string): string | null {
-		// ```sql ... ```
 		let m = text.match(/```\s*sql\s*\r?\n([\s\S]*?)```/i);
 		if (m) return m[1].trim();
-		// ```sql ... </sql>   (model occasionally closes with </sql>)
 		m = text.match(/```\s*sql\s*\r?\n([\s\S]*?)<\/sql>/i);
 		if (m) return m[1].trim();
-		// bare ``` block (no lang tag)
 		m = text.match(/```\s*\r?\n([\s\S]*?)```/);
 		if (m) return m[1].trim();
 		return null;
@@ -65,11 +61,15 @@
 	}
 </script>
 
-<section class="border-b border-gray-200 bg-blue-50/40">
-	<div class="flex items-start gap-2 p-2">
+<section class="border-b border-rule bg-cream-soft/60">
+	<div class="flex items-start gap-3 px-4 pt-3 pb-2">
+		<div class="flex shrink-0 flex-col items-center gap-1 pt-1">
+			<span class="font-display text-[14px] italic text-rust">ai</span>
+			<span class="h-3 w-px bg-rule"></span>
+		</div>
 		<textarea
-			class="block min-h-12 flex-1 resize-none rounded border border-gray-300 px-2 py-1 text-xs focus:border-blue-400 focus:outline-none"
-			placeholder="describe the query you want…  (⌘⏎ to generate)"
+			class="block min-h-[40px] flex-1 resize-none rounded-md border border-rule bg-cream px-3 py-2 font-sans text-[13px] text-ink placeholder:text-ink-faint placeholder:italic focus:border-rust focus:outline-none"
+			placeholder="describe the query you want…  (⌘⏎)"
 			bind:value={prompt}
 			onkeydown={onKey}
 			disabled={loading}
@@ -77,37 +77,48 @@
 			spellcheck="false"
 		></textarea>
 		<button
-			class="shrink-0 rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+			class="shrink-0 cursor-pointer rounded-md bg-ink px-4 py-2 font-mono text-[11px] tracking-[0.18em] text-cream uppercase transition-colors hover:bg-rust disabled:cursor-not-allowed disabled:opacity-40"
 			onclick={generate}
 			disabled={loading || !prompt.trim()}
 		>
-			{loading ? 'Generating…' : 'Generate'}
+			{loading ? '…' : 'generate'}
 		</button>
 	</div>
 
 	{#if error}
-		<pre class="mx-2 mb-2 rounded bg-red-50 p-2 text-xs whitespace-pre-wrap text-red-700">{error}</pre>
+		<pre
+			class="mx-4 mb-3 rounded bg-crimson-soft p-3 font-mono text-[12px] whitespace-pre-wrap text-crimson">{error}</pre>
 	{:else if generated}
-		<div class="mx-2 mb-2 overflow-hidden rounded border border-gray-200 bg-white">
-			<pre
-				class="max-h-48 overflow-auto p-2 font-mono text-xs whitespace-pre-wrap">{generated.sql}</pre>
-			<div class="flex items-center justify-between border-t border-gray-100 bg-gray-50 px-2 py-1">
-				<span class="text-[10px] text-gray-400">
-					claude{generated.durationMs ? ` · ${(generated.durationMs / 1000).toFixed(1)}s` : ''}
+		<div class="mx-4 mb-3 overflow-hidden rounded-md border border-rule bg-cream">
+			<div
+				class="flex items-center justify-between border-b border-rule bg-cream-soft/60 px-3 py-1"
+			>
+				<span class="font-mono text-[10px] tracking-[0.22em] text-ink-faint uppercase">
+					generated sql
+					{#if generated.durationMs}
+						· {(generated.durationMs / 1000).toFixed(1)}s
+					{/if}
 					{#if !generated.raw.match(/```sql/i)}
-						<span class="text-amber-600"> · no sql block detected</span>
+						· <span class="text-mustard">no sql block detected</span>
 					{/if}
 				</span>
-				<div class="flex gap-2">
-					<button class="text-xs text-gray-500 hover:text-gray-800" onclick={copy}>copy</button>
+				<div class="flex items-center gap-3 text-[11px]">
 					<button
-						class="rounded bg-blue-600 px-2 py-0.5 text-xs text-white"
+						class="cursor-pointer text-ink-muted transition-colors hover:text-ink"
+						onclick={copy}
+					>
+						copy
+					</button>
+					<button
+						class="cursor-pointer rounded bg-rust px-2 py-0.5 font-medium text-cream transition-colors hover:bg-rust-deep"
 						onclick={() => onUseSql(generated!.sql)}
 					>
-						Use
+						use →
 					</button>
 				</div>
 			</div>
+			<pre
+				class="max-h-48 overflow-auto px-3 py-2 font-mono text-[12px] whitespace-pre-wrap text-ink">{generated.sql}</pre>
 		</div>
 	{/if}
 </section>

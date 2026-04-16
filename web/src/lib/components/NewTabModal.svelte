@@ -12,7 +12,6 @@
 	let saved = $state<Connection[]>([]);
 	let loadErr = $state<string | null>(null);
 
-	// Drag & drop state for moving connections between folders
 	let dragId = $state<string | null>(null);
 	let dropFolder = $state<string | null | undefined>(undefined);
 
@@ -52,12 +51,10 @@
 			key: key === '' ? '(no folder)' : key,
 			items
 		}));
-		// Always keep an empty (no folder) bucket so users can drop items to ungroup.
 		if (!groups.find((g) => g.folder === null)) {
 			groups.push({ folder: null, key: '(no folder)', items: [] });
 		}
 		groups.sort((a, b) => {
-			// (no folder) goes last for tidiness
 			if (a.folder === null) return 1;
 			if (b.folder === null) return -1;
 			return a.key.localeCompare(b.key);
@@ -92,8 +89,6 @@
 		await refresh();
 		view = { kind: 'edit', conn: cloned };
 	}
-
-	// --- Drag & drop ---
 
 	function onDragStart(e: DragEvent, c: Connection) {
 		if (!e.dataTransfer) return;
@@ -133,8 +128,6 @@
 		await refresh();
 	}
 
-	// --- Edit / save / delete ---
-
 	async function onCreate(input: ConnectionInput) {
 		const c = await api.connections.create(input);
 		tabs.open(c);
@@ -157,58 +150,73 @@
 </script>
 
 <div
-	class="fixed inset-0 z-50 flex items-start justify-center bg-black/30 p-12"
+	class="fixed inset-0 z-50 flex items-start justify-center bg-ink/30 p-12 backdrop-blur-sm"
 	onclick={onclose}
 	role="presentation"
 >
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<div
-		class="max-h-[80vh] w-full max-w-xl overflow-auto rounded-lg bg-white shadow-xl"
+		class="max-h-[80vh] w-full max-w-xl overflow-auto rounded-lg border border-rule bg-cream shadow-[0_24px_64px_-24px_rgba(26,24,20,0.35)]"
 		onclick={(e) => e.stopPropagation()}
 		role="dialog"
 		aria-modal="true"
 		tabindex="-1"
 	>
-		<div class="flex items-center justify-between border-b p-4">
-			<h2 class="font-semibold">
-				{#if view.kind === 'picker'}New tab
-				{:else if view.kind === 'new'}New connection
-				{:else}Edit connection
+		<div class="flex items-baseline justify-between border-b border-rule px-6 py-5">
+			<h2 class="font-display text-2xl leading-none italic text-ink">
+				{#if view.kind === 'picker'}
+					new tab<span class="text-rust">.</span>
+				{:else if view.kind === 'new'}
+					new connection<span class="text-rust">.</span>
+				{:else}
+					edit connection<span class="text-rust">.</span>
 				{/if}
 			</h2>
-			<button class="text-gray-400 hover:text-gray-700" onclick={onclose}>×</button>
+			<button
+				class="cursor-pointer text-2xl leading-none text-ink-faint transition-colors hover:text-rust"
+				onclick={onclose}
+				aria-label="close"
+			>
+				×
+			</button>
 		</div>
-		<div class="p-4">
+
+		<div class="px-6 py-5">
 			{#if view.kind === 'picker'}
 				{#if loadErr}
-					<pre class="mb-3 rounded bg-red-50 p-3 text-sm whitespace-pre-wrap text-red-700">{loadErr}</pre>
+					<pre
+						class="mb-4 rounded bg-crimson-soft p-3 font-mono text-[12px] whitespace-pre-wrap text-crimson">{loadErr}</pre>
 				{/if}
 				{#if saved.length === 0}
-					<p class="text-sm text-gray-500">no saved connections yet.</p>
+					<p class="mb-4 font-mono text-[11px] tracking-widest text-ink-faint uppercase">
+						no saved connections yet
+					</p>
 				{:else}
-					<p class="mb-2 text-[11px] text-gray-400">
-						drag to move between folders · hover for clone/edit
+					<p class="mb-3 font-mono text-[10px] tracking-widest text-ink-faint uppercase">
+						drag to reorder folder · hover for clone & edit
 					</p>
 					{#each grouped as g (g.key)}
 						<section
-							class="mb-4 rounded border-2 border-dashed transition-colors {dropFolder === g.folder
-								? 'border-blue-400 bg-blue-50/40'
+							class="mb-5 rounded-md border-2 border-dashed transition-colors {dropFolder === g.folder
+								? 'border-rust bg-rust-soft/30'
 								: 'border-transparent'}"
 							ondragover={(e) => onDragOver(e, g.folder)}
 							ondragleave={() => onDragLeave(g.folder)}
 							ondrop={(e) => onDrop(e, g.folder)}
 							role="group"
 						>
-							<h3 class="mb-1 px-1 text-xs tracking-wide text-gray-500 uppercase">{g.key}</h3>
+							<h3 class="mb-1.5 px-2 font-mono text-[10px] tracking-[0.22em] text-ink-faint uppercase">
+								{g.key}
+							</h3>
 							{#if g.items.length === 0}
-								<div class="rounded border border-dashed border-gray-200 px-3 py-2 text-xs text-gray-400">
-									(empty — drop here to ungroup)
+								<div class="rounded-md border border-dashed border-rule px-4 py-3 font-mono text-[11px] text-ink-faint italic">
+									empty — drop here to ungroup
 								</div>
 							{:else}
-								<ul class="divide-y rounded border">
+								<ul class="overflow-hidden rounded-md border border-rule divide-y divide-rule/60">
 									{#each g.items as c (c.id)}
 										<li
-											class="group flex items-center justify-between px-3 py-2 hover:bg-gray-50 {dragId ===
+											class="group/row flex items-center gap-3 bg-cream px-4 py-3 transition-colors hover:bg-cream-soft {dragId ===
 											c.id
 												? 'opacity-40'
 												: ''}"
@@ -216,23 +224,32 @@
 											ondragstart={(e) => onDragStart(e, c)}
 											ondragend={onDragEnd}
 										>
-											<button class="flex-1 cursor-pointer text-left" onclick={() => openTab(c)}>
-												<div class="text-sm font-medium">{c.name}</div>
-												<div class="text-xs text-gray-500">
-													{c.username}@{c.host}:{c.port}{c.database ? `/${c.database}` : ''}
-													{#if c.ssh}· ssh→{c.ssh.host}{/if}
+											<button
+												class="flex-1 cursor-pointer text-left"
+												onclick={() => openTab(c)}
+											>
+												<div class="font-display text-[16px] leading-tight text-ink">
+													{c.name}
+												</div>
+												<div class="mt-0.5 font-mono text-[11px] text-ink-faint">
+													{c.username}@{c.host}:{c.port}{c.database
+														? `/${c.database}`
+														: ''}
+													{#if c.ssh}
+														<span class="text-mustard">· ssh→{c.ssh.host}</span>
+													{/if}
 												</div>
 											</button>
-											<div class="ml-2 flex items-center gap-2 text-xs opacity-0 group-hover:opacity-100">
+											<div class="flex items-center gap-3 opacity-0 transition-opacity group-hover/row:opacity-100">
 												<button
-													class="text-gray-500 hover:text-gray-900"
+													class="cursor-pointer font-mono text-[10px] tracking-widest text-ink-muted uppercase hover:text-rust"
 													title="duplicate"
 													onclick={(e) => clone(c, e)}
 												>
 													clone
 												</button>
 												<button
-													class="text-gray-500 hover:text-gray-900"
+													class="cursor-pointer font-mono text-[10px] tracking-widest text-ink-muted uppercase hover:text-rust"
 													onclick={(e) => {
 														e.stopPropagation();
 														view = { kind: 'edit', conn: c };
@@ -248,18 +265,18 @@
 						</section>
 					{/each}
 				{/if}
-				<div class="mt-4">
+				<div class="mt-6 border-t border-rule pt-5">
 					<button
-						class="rounded bg-blue-600 px-3 py-1 text-sm text-white"
+						class="cursor-pointer rounded-md bg-ink px-4 py-2 font-mono text-[11px] tracking-[0.18em] text-cream uppercase transition-colors hover:bg-rust"
 						onclick={() => (view = { kind: 'new' })}
 					>
-						+ Create new connection
+						+ new connection
 					</button>
 				</div>
 			{:else if view.kind === 'new'}
-				<ConnectionForm onSubmit={onCreate} submitLabel="Create & open" />
+				<ConnectionForm onSubmit={onCreate} submitLabel="create & open" />
 				<button
-					class="mt-3 text-xs text-gray-500 hover:underline"
+					class="mt-4 cursor-pointer font-mono text-[10px] tracking-widest text-ink-faint uppercase hover:text-ink"
 					onclick={() => (view = { kind: 'picker' })}
 				>
 					← back
@@ -269,10 +286,10 @@
 					initial={view.conn}
 					onSubmit={onSaveEdit}
 					onDelete={onDeleteEdit}
-					submitLabel="Save"
+					submitLabel="save"
 				/>
 				<button
-					class="mt-3 text-xs text-gray-500 hover:underline"
+					class="mt-4 cursor-pointer font-mono text-[10px] tracking-widest text-ink-faint uppercase hover:text-ink"
 					onclick={() => (view = { kind: 'picker' })}
 				>
 					← back

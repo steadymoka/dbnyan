@@ -1,1 +1,86 @@
 @import 'tailwindcss';
+
+/* --- design tokens --- */
+@theme {
+	--color-cream: #faf7f2;
+	--color-cream-soft: #f2ede5;
+	--color-cream-deep: #e8e1d4;
+	--color-ink: #1a1814;
+	--color-ink-muted: #5c564e;
+	--color-ink-faint: #a39c92;
+	--color-ink-ghost: #cdc5b8;
+	--color-rule: #e5dfd4;
+	--color-rust: #c44536;
+	--color-rust-soft: #f4dcd2;
+	--color-rust-deep: #8a2f25;
+	--color-moss: #3e6b4a;
+	--color-moss-soft: #dde8df;
+	--color-mustard: #b8851e;
+	--color-crimson: #9b2c2c;
+	--color-crimson-soft: #f3d8d8;
+
+	--font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+	--font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+	--font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+/* --- base (in @layer base so utilities like text-cream win) --- */
+@layer base {
+	html,
+	body {
+		background: var(--color-cream);
+		color: var(--color-ink);
+		font-family: var(--font-sans);
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+		text-rendering: optimizeLegibility;
+	}
+
+	body {
+		background-image:
+			radial-gradient(circle at 1px 1px, rgba(26, 24, 20, 0.025) 1px, transparent 0),
+			linear-gradient(180deg, rgba(228, 219, 199, 0.18) 0%, transparent 220px);
+		background-size:
+			3px 3px,
+			auto;
+		background-attachment: fixed, fixed;
+	}
+
+	:where(button, a, input, select, textarea, [role='button'], [role='menuitem']):focus-visible {
+		outline: 2px solid var(--color-rust);
+		outline-offset: 1px;
+		border-radius: 2px;
+	}
+	:where(input, textarea, select):focus-visible {
+		outline-offset: 0;
+	}
+
+	input,
+	select,
+	textarea,
+	button {
+		font-family: inherit;
+		color: inherit;
+	}
+
+	::selection {
+		background: var(--color-rust);
+		color: var(--color-cream);
+	}
+
+	*::-webkit-scrollbar {
+		width: 10px;
+		height: 10px;
+	}
+	*::-webkit-scrollbar-track {
+		background: transparent;
+	}
+	*::-webkit-scrollbar-thumb {
+		background: var(--color-cream-deep);
+		border-radius: 999px;
+		border: 2px solid var(--color-cream);
+	}
+	*::-webkit-scrollbar-thumb:hover {
+		background: var(--color-ink-ghost);
+	}
+}

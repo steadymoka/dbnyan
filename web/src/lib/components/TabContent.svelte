@@ -126,6 +126,20 @@
 		loadTables(connectionId, db);
 	}
 
+	function selectTable(name: string) {
+		if (name === selectedTable) return;
+		tabs.update(tabId, { table: name, view: 'browse' });
+		if (selectedDb) loadTable(connectionId, selectedDb, name);
+	}
+
+	function setView(v: 'browse' | 'query') {
+		tabs.update(tabId, { view: v });
+	}
+
+	function msg(e: unknown): string {
+		return e instanceof Error ? e.message : String(e);
+	}
+
 	let dbMenuOpen = $state(false);
 	let dbMenuEl = $state<HTMLElement | null>(null);
 
@@ -146,67 +160,66 @@
 			document.removeEventListener('keydown', onEsc);
 		};
 	});
-
-	function selectTable(name: string) {
-		if (name === selectedTable) return;
-		tabs.update(tabId, { table: name, view: 'browse' });
-		if (selectedDb) loadTable(connectionId, selectedDb, name);
-	}
-
-	function setView(v: 'browse' | 'query') {
-		tabs.update(tabId, { view: v });
-	}
-
-	function msg(e: unknown): string {
-		return e instanceof Error ? e.message : String(e);
-	}
 </script>
 
-<div class="flex h-full">
-	<aside class="flex w-64 shrink-0 flex-col border-r border-gray-200 bg-gray-50 text-sm">
-		<header class="border-b border-gray-200 px-3 py-2">
+<div class="flex h-full bg-cream">
+	<aside class="flex w-[260px] shrink-0 flex-col border-r border-rule bg-cream-soft">
+		<header class="border-b border-rule px-4 py-4">
 			{#if conn}
-				<div class="truncate font-medium" title={conn.name}>{conn.name}</div>
-				<div class="truncate text-xs text-gray-500">
+				<div class="font-display text-[18px] leading-tight tracking-tight text-ink">
+					{conn.name}
+				</div>
+				<div class="mt-1 font-mono text-[11px] text-ink-faint">
 					{conn.username}@{conn.host}:{conn.port}
 				</div>
 			{:else if connErr}
-				<pre class="text-xs whitespace-pre-wrap text-red-700">{connErr}</pre>
+				<pre class="font-mono text-[11px] whitespace-pre-wrap text-crimson">{connErr}</pre>
 			{:else}
-				<div class="text-gray-400">loading…</div>
+				<div class="font-mono text-[11px] tracking-widest text-ink-faint uppercase">
+					connecting…
+				</div>
 			{/if}
 		</header>
 
-		<section class="relative border-b border-gray-200" bind:this={dbMenuEl}>
+		<section class="relative border-b border-rule" bind:this={dbMenuEl}>
 			{#if dbsLoading}
-				<div class="px-3 py-2 text-xs text-gray-400">connecting…</div>
+				<div class="px-4 py-3 font-mono text-[11px] tracking-widest text-ink-faint uppercase">
+					connecting…
+				</div>
 			{:else if dbsErr}
-				<pre class="m-2 rounded bg-red-50 p-2 text-xs whitespace-pre-wrap text-red-700">{dbsErr}</pre>
+				<pre
+					class="m-3 rounded bg-crimson-soft p-3 font-mono text-[11px] whitespace-pre-wrap text-crimson">{dbsErr}</pre>
 			{:else}
 				<button
-					class="flex w-full items-center justify-between px-3 py-2 text-left hover:bg-gray-100"
+					class="flex w-full cursor-pointer items-center justify-between px-4 py-3 text-left transition-colors hover:bg-cream-deep/60"
 					onclick={() => (dbMenuOpen = !dbMenuOpen)}
 					disabled={dbs.length === 0}
 				>
-					<span class="flex items-baseline gap-1 truncate">
-						<span class="text-[10px] tracking-wide text-gray-400 uppercase">db</span>
-						<span class="truncate font-medium {selectedDb ? '' : 'text-gray-400'}">
-							{selectedDb ?? 'pick a database'}
+					<span class="flex flex-col">
+						<span class="font-mono text-[10px] tracking-[0.22em] text-ink-faint uppercase">
+							database
+						</span>
+						<span
+							class="mt-0.5 truncate font-mono text-[14px] {selectedDb
+								? 'text-ink'
+								: 'text-ink-faint italic'}"
+						>
+							{selectedDb ?? 'pick one'}
 						</span>
 					</span>
-					<span class="text-xs text-gray-400">▾</span>
+					<span class="font-mono text-xs text-ink-faint">{dbMenuOpen ? '▴' : '▾'}</span>
 				</button>
 				{#if dbMenuOpen}
 					<div
-						class="absolute top-full left-2 right-2 z-20 mt-1 max-h-72 overflow-auto rounded-md border border-gray-200 bg-white py-1 shadow-lg"
+						class="absolute top-full right-2 left-2 z-20 mt-1 max-h-72 overflow-auto rounded-md border border-rule bg-cream py-1 shadow-[0_8px_24px_-12px_rgba(26,24,20,0.15)]"
 						role="menu"
 					>
 						{#each dbs as db (db)}
 							<button
-								class="block w-full truncate px-3 py-1 text-left text-sm hover:bg-blue-50 {db ===
+								class="block w-full cursor-pointer truncate px-3 py-1.5 text-left font-mono text-[13px] transition-colors {db ===
 								selectedDb
-									? 'bg-blue-100 font-medium text-blue-800'
-									: ''}"
+									? 'bg-rust-soft/60 text-rust'
+									: 'text-ink hover:bg-cream-soft'}"
 								onclick={() => selectDb(db)}
 								role="menuitem"
 							>
@@ -219,32 +232,40 @@
 		</section>
 
 		<section class="flex flex-1 flex-col overflow-hidden">
-			<div class="px-3 pt-3 pb-1 text-xs tracking-wide text-gray-500 uppercase">
+			<div class="px-4 pt-4 pb-1.5 font-mono text-[10px] tracking-[0.22em] text-ink-faint uppercase">
 				Tables{selectedDb ? ` · ${selectedDb}` : ''}
 			</div>
-			<div class="flex-1 overflow-auto px-1 pb-2">
+			<div class="flex-1 overflow-auto px-2 pb-2">
 				{#if !selectedDb}
-					<div class="px-2 py-1 text-xs text-gray-400">pick a database</div>
+					<div class="px-3 py-2 font-mono text-[11px] text-ink-faint italic">pick a database</div>
 				{:else if tablesLoading}
-					<div class="px-2 py-1 text-xs text-gray-400">loading…</div>
+					<div class="px-3 py-2 font-mono text-[11px] text-ink-faint italic">loading…</div>
 				{:else if tablesErr}
-					<pre class="px-2 py-1 text-xs whitespace-pre-wrap text-red-700">{tablesErr}</pre>
+					<pre
+						class="m-2 rounded bg-crimson-soft p-3 font-mono text-[11px] whitespace-pre-wrap text-crimson">{tablesErr}</pre>
 				{:else if tables}
 					{#if tables.length === 0}
-						<div class="px-2 py-1 text-xs text-gray-400">(no tables)</div>
+						<div class="px-3 py-2 font-mono text-[11px] text-ink-faint italic">(no tables)</div>
 					{/if}
 					{#each tables as t (t.name)}
 						<button
-							class="block w-full truncate rounded px-2 py-1 text-left hover:bg-gray-200 {t.name ===
+							class="group/row flex w-full cursor-pointer items-center gap-2 truncate rounded px-3 py-1.5 text-left font-mono text-[12.5px] transition-colors {t.name ===
 							selectedTable
-								? 'bg-blue-100 font-medium text-blue-800'
-								: ''}"
+								? 'bg-cream-deep text-ink'
+								: 'text-ink-muted hover:bg-cream-deep/40 hover:text-ink'}"
 							onclick={() => selectTable(t.name)}
 							title="{t.kind}: {t.name}"
 						>
-							{t.name}
+							<span
+								class="h-3 w-[2px] rounded-full transition-colors {t.name === selectedTable
+									? 'bg-rust'
+									: 'bg-transparent'}"
+							></span>
+							<span class="truncate">{t.name}</span>
 							{#if t.kind !== 'BASE TABLE'}
-								<span class="ml-1 text-xs text-gray-400">{t.kind}</span>
+								<span class="ml-auto text-[9px] tracking-widest text-ink-faint uppercase">
+									{t.kind === 'VIEW' ? 'view' : t.kind.toLowerCase()}
+								</span>
 							{/if}
 						</button>
 					{/each}
@@ -253,20 +274,22 @@
 		</section>
 	</aside>
 
-	<main class="flex flex-1 flex-col overflow-hidden">
-		<nav class="flex items-center gap-1 border-b border-gray-200 bg-white px-2 py-1">
+	<main class="flex flex-1 flex-col overflow-hidden bg-cream">
+		<nav class="flex items-center gap-1 border-b border-rule bg-cream px-3 py-1.5">
 			<button
-				class="rounded px-2 py-1 text-xs {view === 'browse'
-					? 'bg-gray-100 font-medium text-gray-800'
-					: 'text-gray-500 hover:bg-gray-100'}"
+				class="cursor-pointer rounded px-3 py-1 font-mono text-[10px] tracking-[0.22em] uppercase transition-colors {view ===
+				'browse'
+					? 'bg-cream-deep text-ink'
+					: 'text-ink-faint hover:bg-cream-soft hover:text-ink'}"
 				onclick={() => setView('browse')}
 			>
 				Browse
 			</button>
 			<button
-				class="rounded px-2 py-1 text-xs {view === 'query'
-					? 'bg-gray-100 font-medium text-gray-800'
-					: 'text-gray-500 hover:bg-gray-100'}"
+				class="cursor-pointer rounded px-3 py-1 font-mono text-[10px] tracking-[0.22em] uppercase transition-colors {view ===
+				'query'
+					? 'bg-cream-deep text-ink'
+					: 'text-ink-faint hover:bg-cream-soft hover:text-ink'}"
 				onclick={() => setView('query')}
 			>
 				Query
@@ -278,40 +301,48 @@
 				<QueryView {tabId} {connectionId} database={selectedDb} {sql} />
 			</div>
 		{:else if !selectedTable}
-			<div class="flex h-full items-center justify-center text-sm text-gray-400">
-				{#if !conn}
-					&nbsp;
-				{:else if !selectedDb}
-					← pick a database
-				{:else}
-					← pick a table
-				{/if}
+			<div class="flex h-full items-center justify-center">
+				<div class="text-center">
+					<p class="font-display text-2xl text-ink-ghost italic">
+						{#if !conn}
+							&nbsp;
+						{:else if !selectedDb}
+							pick a database
+						{:else}
+							pick a table
+						{/if}
+					</p>
+					<p class="mt-2 font-mono text-[10px] tracking-widest text-ink-faint uppercase">
+						from the left
+					</p>
+				</div>
 			</div>
 		{:else}
-			<header class="border-b border-gray-200 px-4 py-2">
-				<div class="font-mono text-sm">
-					<span class="text-gray-500">{selectedDb}.</span><span class="font-medium"
-						>{selectedTable}</span
-					>
+			<header class="border-b border-rule px-5 py-3">
+				<div class="flex items-baseline gap-1.5 font-mono text-[14px]">
+					<span class="text-ink-faint">{selectedDb}</span>
+					<span class="text-ink-ghost">/</span>
+					<span class="font-medium text-ink">{selectedTable}</span>
 				</div>
 				{#if rowSet}
-					<div class="text-xs text-gray-500">
+					<div class="mt-1 font-mono text-[10px] tracking-widest text-ink-faint uppercase">
 						{rowSet.returned} row{rowSet.returned === 1 ? '' : 's'} · limit {rowSet.limit}
 					</div>
 				{/if}
 			</header>
 
 			<div class="flex-1 overflow-auto">
-				<section class="border-b border-gray-200">
+				<section class="border-b border-rule">
 					<div
-						class="border-b border-gray-100 bg-gray-50 px-4 py-1 text-xs tracking-wide text-gray-500 uppercase"
+						class="border-b border-rule bg-cream-soft/60 px-5 py-1.5 font-mono text-[10px] tracking-[0.22em] text-ink-faint uppercase"
 					>
 						Data
 					</div>
 					{#if rowsLoading}
-						<div class="px-4 py-3 text-sm text-gray-400">loading…</div>
+						<div class="px-5 py-3 font-mono text-[11px] text-ink-faint italic">loading…</div>
 					{:else if rowsErr}
-						<pre class="px-4 py-3 text-sm whitespace-pre-wrap text-red-700">{rowsErr}</pre>
+						<pre
+							class="m-3 rounded bg-crimson-soft p-3 font-mono text-[12px] whitespace-pre-wrap text-crimson">{rowsErr}</pre>
 					{:else if rowSet}
 						<RowGrid columns={rowSet.columns} rows={rowSet.rows} empty="(empty)" />
 					{/if}
@@ -319,35 +350,43 @@
 
 				<section>
 					<div
-						class="border-b border-gray-100 bg-gray-50 px-4 py-1 text-xs tracking-wide text-gray-500 uppercase"
+						class="border-b border-rule bg-cream-soft/60 px-5 py-1.5 font-mono text-[10px] tracking-[0.22em] text-ink-faint uppercase"
 					>
 						Schema
 					</div>
 					{#if schemaErr && !rowsErr}
-						<pre class="px-4 py-3 text-sm whitespace-pre-wrap text-red-700">{schemaErr}</pre>
+						<pre
+							class="m-3 rounded bg-crimson-soft p-3 font-mono text-[12px] whitespace-pre-wrap text-crimson">{schemaErr}</pre>
 					{:else if schema}
-						<table class="w-full font-mono text-xs">
-							<thead class="bg-gray-50">
-								<tr>
-									<th class="border-b border-gray-200 px-2 py-1 text-left font-semibold">column</th>
-									<th class="border-b border-gray-200 px-2 py-1 text-left font-semibold">type</th>
-									<th class="border-b border-gray-200 px-2 py-1 text-left font-semibold">null</th>
-									<th class="border-b border-gray-200 px-2 py-1 text-left font-semibold">key</th>
-									<th class="border-b border-gray-200 px-2 py-1 text-left font-semibold">default</th>
-									<th class="border-b border-gray-200 px-2 py-1 text-left font-semibold">extra</th>
+						<table class="w-full font-mono text-[12px]">
+							<thead>
+								<tr class="border-b border-rule">
+									{#each ['column', 'type', 'null', 'key', 'default', 'extra'] as h (h)}
+										<th
+											class="px-3 py-2 text-left text-[10px] font-semibold tracking-[0.18em] text-ink-muted uppercase"
+										>
+											{h}
+										</th>
+									{/each}
 								</tr>
 							</thead>
 							<tbody>
 								{#each schema as col (col.name)}
-									<tr class="border-b border-gray-100">
-										<td class="px-2 py-1 font-medium">{col.name}</td>
-										<td class="px-2 py-1 text-gray-700">{col.data_type}</td>
-										<td class="px-2 py-1">
+									<tr class="border-b border-rule/60">
+										<td class="px-3 py-1.5 font-medium text-ink">{col.name}</td>
+										<td class="px-3 py-1.5 text-ink-muted">{col.data_type}</td>
+										<td class="px-3 py-1.5 text-rust">
 											{col.nullable ? '✓' : ''}
 										</td>
-										<td class="px-2 py-1 text-gray-700">{col.key ?? ''}</td>
-										<td class="px-2 py-1 text-gray-700">{col.default ?? ''}</td>
-										<td class="px-2 py-1 text-gray-700">{col.extra ?? ''}</td>
+										<td class="px-3 py-1.5">
+											{#if col.key === 'PRI'}
+												<span class="rounded bg-mustard/15 px-1.5 py-0.5 text-[10px] tracking-widest text-mustard uppercase">pri</span>
+											{:else if col.key}
+												<span class="text-ink-muted">{col.key}</span>
+											{/if}
+										</td>
+										<td class="px-3 py-1.5 text-ink-muted">{col.default ?? ''}</td>
+										<td class="px-3 py-1.5 text-ink-muted">{col.extra ?? ''}</td>
 									</tr>
 								{/each}
 							</tbody>

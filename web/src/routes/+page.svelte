@@ -24,7 +24,6 @@
 
 	const active = $derived(tabs.tabs.find((t) => t.id === tabs.activeId) ?? null);
 
-	// Sync active tab state → URL (one-way, after init).
 	$effect(() => {
 		if (!initialized) return;
 		const a = active;
@@ -35,7 +34,7 @@
 		void a_db;
 		void a_table;
 		void a_view;
-		void a_cid; // make deps explicit
+		void a_cid;
 		syncUrlFrom(a);
 	});
 
@@ -70,7 +69,7 @@
 				tabs.open(conn);
 				tab = tabs.tabs.find((t) => t.connectionId === cid) ?? null;
 			} catch {
-				return; // unknown connection — leave URL/state as is, user sees empty
+				return;
 			}
 		} else {
 			tabs.activate(tab.id);
@@ -82,20 +81,48 @@
 </script>
 
 <div class="flex h-screen flex-col">
-	<div class="flex items-center border-b bg-gray-50 text-sm">
-		<div class="border-r px-3 py-2 font-semibold text-gray-700">dbnyan</div>
-		<div class="flex flex-1 items-center overflow-x-auto">
+	<!-- chrome / tab bar -->
+	<div
+		class="flex items-end gap-1 border-b border-rule bg-cream-soft px-3 pt-3 pb-0 select-none"
+	>
+		<a
+			href="/"
+			class="mr-3 mb-1.5 leading-none whitespace-nowrap text-ink no-underline"
+			onclick={(e) => {
+				if (active) {
+					e.preventDefault();
+					tabs.activate('');
+					tabs.activeId = null;
+				}
+			}}
+		>
+			<span class="font-display text-[20px] italic">
+				<span class="font-light">db</span><span class="font-medium">nyan</span>
+			</span>
+			<span class="text-rust">.</span>
+		</a>
+
+		<div class="flex flex-1 items-end overflow-x-auto">
 			{#each tabs.tabs as t (t.id)}
 				<div
-					class="flex shrink-0 items-center border-r {t.id === tabs.activeId
-						? 'bg-white'
-						: 'hover:bg-gray-100'}"
+					class="group/tab relative flex shrink-0 items-stretch rounded-t-[6px] border border-b-0 transition-colors {t.id ===
+					tabs.activeId
+						? 'border-rule bg-cream -mb-px'
+						: 'border-transparent bg-transparent hover:bg-cream/60'}"
 				>
-					<button class="py-2 pr-1 pl-3 text-sm" onclick={() => tabs.activate(t.id)}>
+					<button
+						class="cursor-pointer px-3 py-2 text-[13px] {t.id === tabs.activeId
+							? 'font-medium text-ink'
+							: 'text-ink-muted hover:text-ink'}"
+						onclick={() => tabs.activate(t.id)}
+					>
 						{t.label}
 					</button>
 					<button
-						class="mr-2 rounded px-1 text-gray-400 hover:bg-gray-200 hover:text-red-600"
+						class="mr-2 my-auto rounded-full px-1 text-[14px] leading-none text-ink-faint transition-colors hover:bg-crimson-soft hover:text-crimson {t.id ===
+						tabs.activeId
+							? 'opacity-100'
+							: 'opacity-0 group-hover/tab:opacity-100'}"
 						aria-label="close tab"
 						onclick={() => tabs.close(t.id)}
 					>
@@ -103,28 +130,43 @@
 					</button>
 				</div>
 			{/each}
+
 			<button
-				class="px-3 py-2 text-sm text-gray-500 hover:bg-gray-100"
+				class="ml-1 mb-1.5 cursor-pointer rounded px-2 py-1 text-[13px] text-ink-faint hover:text-rust"
 				onclick={() => (modalOpen = true)}
+				title="open a new tab"
 			>
-				+ new tab
+				+ new
 			</button>
 		</div>
 	</div>
 
-	<main class="flex-1 overflow-auto">
+	<main class="flex-1 overflow-hidden">
 		{#if active}
 			{#key active.id}
 				<TabContent tabId={active.id} />
 			{/key}
 		{:else}
 			<div class="flex h-full items-center justify-center">
-				<button
-					class="rounded border border-dashed border-gray-300 px-6 py-4 text-sm text-gray-500 hover:border-gray-400 hover:text-gray-700"
-					onclick={() => (modalOpen = true)}
-				>
-					+ open a connection
-				</button>
+				<div class="max-w-md px-8 text-center">
+					<h1 class="font-display text-[64px] leading-none text-ink">
+						<span class="font-light italic">db</span><span class="font-medium italic"
+							>nyan</span
+						><span class="font-display text-rust">.</span>
+					</h1>
+					<p class="mt-3 font-mono text-[11px] tracking-[0.25em] text-ink-faint uppercase">
+						a small, hand-built MySQL admin
+					</p>
+					<button
+						class="mt-10 inline-flex cursor-pointer items-center gap-2 rounded-full border border-ink px-6 py-2.5 text-[13px] font-medium text-ink transition-colors hover:bg-ink hover:text-cream"
+						onclick={() => (modalOpen = true)}
+					>
+						<span class="font-display text-base leading-none">+</span> open a connection
+					</button>
+					<p class="mt-12 font-mono text-[10px] tracking-widest text-ink-ghost uppercase">
+						⌘⏎ run · drag to organize
+					</p>
+				</div>
 			</div>
 		{/if}
 	</main>
