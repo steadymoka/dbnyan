@@ -43,7 +43,7 @@ Rust :3939 + SvelteKit dev 서버 :5173 (Vite가 `/api/*`를 백엔드로 프록
 make            # 타겟 목록
 make dev        # = ./bin/dev
 make start      # = ./bin/start
-make portless   # ./bin/start를 portless 아래로 (https://dbnyan.localhost)
+make portless   # ./bin/start를 portless 아래로 (https://dbnyan.localhost:1355)
 make build      # 웹 빌드 + cargo release
 make check      # cargo check + svelte-check
 make fmt        # cargo fmt + prettier
@@ -55,11 +55,24 @@ make clean      # 빌드 산출물 삭제
 `*.localhost` HTTPS 프록시 셋업이 있으면:
 
 ```bash
-make portless                                # → https://dbnyan.localhost
-make portless PORTLESS_NAME=admin.dbnyan     # → https://admin.dbnyan.localhost
+make portless                                # → https://dbnyan.localhost:1355
+make portless PORTLESS_NAME=admin.dbnyan     # → https://admin.dbnyan.localhost:1355
 ```
 
-`bin/start`는 portless가 넘긴 `PORT` env를 받아 그 포트에 서버를 띄움 (우선순위: `DBNYAN_PORT` > `PORT` > `3939`).
+`bin/start`는 portless가 넘긴 `PORT` env를 받아 그 포트에 서버를 띄움 (우선순위: `DBNYAN_PORT` > `PORT` > `3939`). 끝의 `:1355`는 portless 프록시의 기본 포트로, `portless proxy start -p 443` (sudo 필요)로 띄우면 생략 가능.
+
+### 메뉴바 (SwiftBar)
+
+선택사항: 맥 메뉴바에 portless 서버 상태 + Start / Stop / Open / View logs 메뉴. 플러그인은 레포 안에 그대로 들어 있음 — [`bin/swiftbar/dbnyan.10s.sh`](./bin/swiftbar/dbnyan.10s.sh).
+
+```bash
+brew install --cask swiftbar
+open -a SwiftBar
+```
+
+첫 실행 다이얼로그에서 **Plugin Folder**를 `<이 레포>/bin/swiftbar`로 지정. 10초마다 갱신 (파일명 `.10s.sh` → `.30s.sh` 식으로 주기 변경). `PORTLESS_NAME`을 기본값과 다르게 쓰는 경우 플러그인 상단 `NAME=` 줄을 수정.
+
+> 참고: SwiftBar는 폴더 하나만 감시함. `bin/swiftbar`로 지정하면 다른 SwiftBar 플러그인도 같은 폴더에 둬야 함.
 
 ---
 

@@ -43,7 +43,7 @@ Rust on `:3939`, SvelteKit dev server on `:5173` with Vite proxying `/api/*` to 
 make            # list targets
 make dev        # = ./bin/dev
 make start      # = ./bin/start
-make portless   # spawn ./bin/start under portless (https://dbnyan.localhost)
+make portless   # spawn ./bin/start under portless (https://dbnyan.localhost:1355)
 make build      # web build + cargo release
 make check      # cargo check + svelte-check
 make fmt        # cargo fmt + prettier
@@ -55,11 +55,24 @@ make clean      # remove build artifacts
 If you have the `*.localhost` HTTPS proxy set up:
 
 ```bash
-make portless                                # → https://dbnyan.localhost
-make portless PORTLESS_NAME=admin.dbnyan     # → https://admin.dbnyan.localhost
+make portless                                # → https://dbnyan.localhost:1355
+make portless PORTLESS_NAME=admin.dbnyan     # → https://admin.dbnyan.localhost:1355
 ```
 
-`bin/start` honors the `PORT` env var that portless sets (priority: `DBNYAN_PORT` > `PORT` > `3939`).
+`bin/start` honors the `PORT` env var that portless sets (priority: `DBNYAN_PORT` > `PORT` > `3939`). The `:1355` suffix is the portless proxy's default — set up `portless proxy start -p 443` (requires sudo) to drop it.
+
+### Menu bar (SwiftBar)
+
+Optional: show the portless server state in the macOS menu bar with Start / Stop / Open / View logs actions. The plugin lives in-tree at [`bin/swiftbar/dbnyan.10s.sh`](./bin/swiftbar/dbnyan.10s.sh).
+
+```bash
+brew install --cask swiftbar
+open -a SwiftBar
+```
+
+In SwiftBar's first-launch dialog, set **Plugin Folder** to `<this repo>/bin/swiftbar`. The icon updates every 10 s (rename the file suffix to change, e.g. `dbnyan.30s.sh`). If you run portless under a custom name (`make portless PORTLESS_NAME=admin.dbnyan`), edit the `NAME=` line at the top of the plugin.
+
+> Note: SwiftBar can only watch one folder. Pointing it at `bin/swiftbar` means other SwiftBar plugins would also need to live there.
 
 ---
 
