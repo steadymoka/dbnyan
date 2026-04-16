@@ -14,7 +14,7 @@
 	let loadErr = $state<string | null>(null);
 
 	let dragId = $state<string | null>(null);
-	let dropFolder = $state<string | null | undefined>(undefined);
+	let dropPath = $state<string | null | undefined>(undefined); // null = no-folder zone, string = path
 
 	async function refresh() {
 		try {
@@ -38,44 +38,46 @@
 		return () => window.removeEventListener('keydown', onKey);
 	});
 
-	type Group = {
-		folder: string | null; // full path e.g. "prod/api"; null for no-folder
-		segments: string[]; // ["prod", "api"]
-		depth: number; // 0 for top-level folder, 1 for one level deep, …
+	type Node = {
+		name: string;
+		fullPath: string;
+		depth: number;
+		children: Node[];
 		items: Connection[];
 	};
 
-	const grouped = $derived.by<Group[]>(() => {
-		const m = new Map<string, Connection[]>();
+	const tree = $derived.by<Node>(() => {
+		const root: Node = { name: '', fullPath: '', depth: -1, children: [], items: [] };
+		const byPath = new Map<string, Node>();
+		byPath.set('', root);
 		for (const c of saved) {
-			const k = c.folder ?? '';
-			if (!m.has(k)) m.set(k, []);
-			m.get(k)!.push(c);
-		}
-		const groups: Group[] = [];
-		for (const [path, items] of m.entries()) {
-			if (path === '') {
-				groups.push({ folder: null, segments: [], depth: 0, items });
-			} else {
-				const segments = path.split('/').filter(Boolean);
-				groups.push({
-					folder: path,
-					segments,
-					depth: Math.max(0, segments.length - 1),
-					items
-				});
+			if (!c.folder) {
+				root.items.push(c);
+				continue;
 			}
+			const segments = c.folder.split('/').filter(Boolean);
+			let parent = root;
+			let pathSoFar = '';
+			for (let i = 0; i < segments.length; i++) {
+				const seg = segments[i];
+				pathSoFar = pathSoFar ? `${pathSoFar}/${seg}` : seg;
+				let node = byPath.get(pathSoFar);
+				if (!node) {
+					node = { name: seg, fullPath: pathSoFar, depth: i, children: [], items: [] };
+					byPath.set(pathSoFar, node);
+					parent.children.push(node);
+				}
+				parent = node;
+			}
+			parent.items.push(c);
 		}
-		// always keep an empty (no folder) bucket at the bottom
-		if (!groups.find((g) => g.folder === null)) {
-			groups.push({ folder: null, segments: [], depth: 0, items: [] });
-		}
-		groups.sort((a, b) => {
-			if (a.folder === null) return 1;
-			if (b.folder === null) return -1;
-			return a.folder.localeCompare(b.folder);
-		});
-		return groups;
+		const sortNode = (n: Node) => {
+			n.children.sort((a, b) => a.name.localeCompare(b.name));
+			n.items.sort((a, b) => a.name.localeCompare(b.name));
+			n.children.forEach(sortNode);
+		};
+		sortNode(root);
+		return root;
 	});
 
 	function openTab(c: Connection) {
@@ -117,31 +119,33 @@
 
 	function onDragEnd() {
 		dragId = null;
-		dropFolder = undefined;
+		dropPath = undefined;
 	}
 
-	function onDragOver(e: DragEvent, folder: string | null) {
+	function onDragOver(e: DragEvent, path: string | null) {
 		e.preventDefault();
+		e.stopPropagation();
 		if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-		dropFolder = folder;
+		dropPath = path;
 	}
 
-	function onDragLeave(folder: string | null) {
-		if (dropFolder === folder) dropFolder = undefined;
+	function onDragLeave(path: string | null) {
+		if (dropPath === path) dropPath = undefined;
 	}
 
-	async function onDrop(e: DragEvent, folder: string | null) {
+	async function onDrop(e: DragEvent, path: string | null) {
 		e.preventDefault();
+		e.stopPropagation();
 		const id = e.dataTransfer?.getData('text/plain') || dragId;
-		dropFolder = undefined;
+		dropPath = undefined;
 		dragId = null;
 		if (!id) return;
 		const c = saved.find((x) => x.id === id);
 		if (!c) return;
-		if ((c.folder ?? null) === folder) return;
+		if ((c.folder ?? null) === path) return;
 		await api.connections.update(id, {
 			...asInput(c),
-			folder: folder ?? undefined
+			folder: path ?? undefined
 		});
 		await refresh();
 	}
@@ -165,7 +169,102 @@
 		await refresh();
 		view = { kind: 'picker' };
 	}
+
+	const INDENT = 14;
 </script>
+
+{#snippet folderNode(node: Node)}
+	{@const folderActive = dropPath === node.fullPath}
+	{#if node.fullPath !== ''}
+		<div
+			class="rounded border-l-2 transition-colors {folderActive
+				? 'border-rust bg-rust-soft/30'
+				: 'border-rule/60'}"
+			style="margin-left: {node.depth * INDENT}px"
+			ondragover={(e) => onDragOver(e, node.fullPath)}
+			ondragleave={() => onDragLeave(node.fullPath)}
+			ondrop={(e) => onDrop(e, node.fullPath)}
+			role="group"
+		>
+			<h3 class="px-2.5 py-1.5 text-[12px] font-medium text-ink">
+				<span class="text-ink-faint">▾</span>
+				{node.name}
+			</h3>
+			<div class="pb-2 pl-{(node.depth + 1) * 0}">
+				{#each node.children as child (child.fullPath)}
+					{@render folderNode(child)}
+				{/each}
+				{#if node.items.length > 0}
+					<ul
+						class="mx-2 overflow-hidden rounded-md border border-rule divide-y divide-rule/60"
+						style="margin-left: {(node.depth + 1) * INDENT - node.depth * INDENT}px"
+					>
+						{#each node.items as c (c.id)}
+							{@render connectionRow(c)}
+						{/each}
+					</ul>
+				{/if}
+			</div>
+		</div>
+	{:else}
+		{#each node.children as child (child.fullPath)}
+			{@render folderNode(child)}
+		{/each}
+	{/if}
+{/snippet}
+
+{#snippet connectionRow(c: Connection)}
+	{@const swatch = colorHex(c.color)}
+	<li
+		class="group/row flex items-center gap-3 bg-cream px-3 py-2.5 transition-colors hover:bg-cream-soft {dragId ===
+		c.id
+			? 'opacity-40'
+			: ''}"
+		draggable="true"
+		ondragstart={(e) => onDragStart(e, c)}
+		ondragend={onDragEnd}
+	>
+		{#if swatch}
+			<span
+				class="block h-2.5 w-2.5 shrink-0 rounded-full"
+				style="background: {swatch}"
+				aria-hidden="true"
+			></span>
+		{:else}
+			<span
+				class="block h-2.5 w-2.5 shrink-0 rounded-full border border-ink-ghost"
+				aria-hidden="true"
+			></span>
+		{/if}
+		<button class="flex-1 cursor-pointer text-left" onclick={() => openTab(c)}>
+			<div class="text-[14px] leading-tight text-ink">{c.name}</div>
+			<div class="mt-0.5 font-mono text-[11px] text-ink-faint">
+				{c.username}@{c.host}:{c.port}{c.database ? `/${c.database}` : ''}
+				{#if c.ssh}<span class="text-mustard">· ssh→{c.ssh.host}</span>
+				{:else if c.aws_ssm}<span class="text-mustard">· ssm→{c.aws_ssm.target}</span>
+				{/if}
+			</div>
+		</button>
+		<div class="flex items-center gap-3 text-[11px] opacity-0 transition-opacity group-hover/row:opacity-100">
+			<button
+				class="cursor-pointer text-ink-muted hover:text-rust"
+				title="duplicate"
+				onclick={(e) => clone(c, e)}
+			>
+				clone
+			</button>
+			<button
+				class="cursor-pointer text-ink-muted hover:text-rust"
+				onclick={(e) => {
+					e.stopPropagation();
+					view = { kind: 'edit', conn: c };
+				}}
+			>
+				edit
+			</button>
+		</div>
+	</li>
+{/snippet}
 
 <div
 	class="fixed inset-0 z-50 flex items-start justify-center bg-ink/30 p-12 backdrop-blur-sm"
@@ -206,100 +305,41 @@
 					<p class="mb-4 text-[11px] text-ink-faint">no saved connections yet.</p>
 				{:else}
 					<p class="mb-3 text-[11px] text-ink-faint">
-						Drag to reorder folder · use <span class="font-mono">/</span> for nested folders
+						Drag a row onto a folder · type <span class="font-mono">prod/api</span> in the form for nesting
 					</p>
-					{#each grouped as g (g.folder ?? '__root__')}
-						<section
-							class="mb-3 rounded-md border-2 border-dashed transition-colors {dropFolder ===
-							g.folder
+
+					<div class="space-y-2">
+						{@render folderNode(tree)}
+
+						<!-- (no folder) bucket — always visible at the bottom for ungroup drops -->
+						{@const noFolderActive = dropPath === null}
+						<div
+							class="rounded border-l-2 transition-colors {noFolderActive
 								? 'border-rust bg-rust-soft/30'
-								: 'border-transparent'}"
-							style="margin-left: {g.depth * 16}px"
-							ondragover={(e) => onDragOver(e, g.folder)}
-							ondragleave={() => onDragLeave(g.folder)}
-							ondrop={(e) => onDrop(e, g.folder)}
+								: 'border-rule/40'}"
+							ondragover={(e) => onDragOver(e, null)}
+							ondragleave={() => onDragLeave(null)}
+							ondrop={(e) => onDrop(e, null)}
 							role="group"
 						>
-							<h3 class="mb-1.5 px-2 text-[11px] text-ink-muted">
-								{#if g.folder === null}
-									<span class="text-ink-faint italic">no folder</span>
-								{:else}
-									{#each g.segments as seg, i (i)}
-										{#if i > 0}<span class="px-1 text-ink-ghost">/</span>{/if}
-										<span class={i === g.segments.length - 1 ? 'text-ink-muted' : 'text-ink-ghost'}>
-											{seg}
-										</span>
-									{/each}
-								{/if}
+							<h3 class="px-2.5 py-1.5 text-[12px] font-medium text-ink-faint italic">
+								no folder
 							</h3>
-							{#if g.items.length === 0}
-								<div class="rounded-md border border-dashed border-rule px-3 py-2 text-[11px] text-ink-faint italic">
-									empty — drop here to ungroup
-								</div>
-							{:else}
-								<ul class="overflow-hidden rounded-md border border-rule divide-y divide-rule/60">
-									{#each g.items as c (c.id)}
-										{@const swatch = colorHex(c.color)}
-										<li
-											class="group/row flex items-center gap-3 bg-cream px-4 py-3 transition-colors hover:bg-cream-soft {dragId ===
-											c.id
-												? 'opacity-40'
-												: ''}"
-											draggable="true"
-											ondragstart={(e) => onDragStart(e, c)}
-											ondragend={onDragEnd}
-										>
-											{#if swatch}
-												<span
-													class="block h-2.5 w-2.5 shrink-0 rounded-full"
-													style="background: {swatch}"
-													aria-hidden="true"
-												></span>
-											{:else}
-												<span class="block h-2.5 w-2.5 shrink-0 rounded-full border border-ink-ghost" aria-hidden="true"></span>
-											{/if}
-											<button
-												class="flex-1 cursor-pointer text-left"
-												onclick={() => openTab(c)}
-											>
-												<div class="text-[14px] leading-tight text-ink">
-													{c.name}
-												</div>
-												<div class="mt-0.5 font-mono text-[11px] text-ink-faint">
-													{c.username}@{c.host}:{c.port}{c.database
-														? `/${c.database}`
-														: ''}
-													{#if c.ssh}
-														<span class="text-mustard">· ssh→{c.ssh.host}</span>
-													{:else if c.aws_ssm}
-														<span class="text-mustard">· ssm→{c.aws_ssm.target}</span>
-													{/if}
-												</div>
-											</button>
-											<div class="flex items-center gap-3 text-[11px] opacity-0 transition-opacity group-hover/row:opacity-100">
-												<button
-													class="cursor-pointer text-ink-muted hover:text-rust"
-													title="duplicate"
-													onclick={(e) => clone(c, e)}
-												>
-													clone
-												</button>
-												<button
-													class="cursor-pointer text-ink-muted hover:text-rust"
-													onclick={(e) => {
-														e.stopPropagation();
-														view = { kind: 'edit', conn: c };
-													}}
-												>
-													edit
-												</button>
-											</div>
-										</li>
-									{/each}
-								</ul>
-							{/if}
-						</section>
-					{/each}
+							<div class="pb-2">
+								{#if tree.items.length > 0}
+									<ul class="mx-2 overflow-hidden rounded-md border border-rule divide-y divide-rule/60">
+										{#each tree.items as c (c.id)}
+											{@render connectionRow(c)}
+										{/each}
+									</ul>
+								{:else}
+									<div class="mx-2 rounded-md border border-dashed border-rule px-3 py-2 text-[11px] text-ink-faint italic">
+										drop here to ungroup
+									</div>
+								{/if}
+							</div>
+						</div>
+					</div>
 				{/if}
 				<div class="mt-5 border-t border-rule pt-4">
 					<button
