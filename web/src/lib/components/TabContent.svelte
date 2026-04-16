@@ -156,6 +156,46 @@
 
 	let browseTab = $state<'data' | 'schema'>('data');
 
+	let sortCol = $state<string | null>(null);
+	let sortDir = $state<'asc' | 'desc'>('asc');
+
+	$effect(() => {
+		// Reset sort when the selected table changes.
+		selectedTable;
+		sortCol = null;
+		sortDir = 'asc';
+	});
+
+	async function reloadRows() {
+		if (!selectedDb || !selectedTable) return;
+		rowsLoading = true;
+		rowsErr = null;
+		try {
+			rowSet = await api.databases.rows(connectionId, selectedDb, selectedTable, {
+				limit: 200,
+				sort: sortCol,
+				dir: sortDir
+			});
+		} catch (e) {
+			rowsErr = msg(e);
+		} finally {
+			rowsLoading = false;
+		}
+	}
+
+	function onColumnSort(col: string) {
+		if (sortCol !== col) {
+			sortCol = col;
+			sortDir = 'asc';
+		} else if (sortDir === 'asc') {
+			sortDir = 'desc';
+		} else {
+			sortCol = null;
+			sortDir = 'asc';
+		}
+		reloadRows();
+	}
+
 	$effect(() => {
 		if (!editing) return;
 		const onKey = (e: KeyboardEvent) => {

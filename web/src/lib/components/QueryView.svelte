@@ -151,7 +151,16 @@
 		<SqlGenerator {connectionId} {database} onUseSql={setSql} />
 
 		<!-- editor (active query) with floating Run -->
-		<div class="relative h-48 shrink-0 border-b border-rule">
+		<div
+			class="relative h-48 shrink-0 border-b border-rule"
+			onkeydown={(e) => {
+				if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+					e.preventDefault();
+					run();
+				}
+			}}
+			role="presentation"
+		>
 			{#key activeQueryId}
 				<SqlEditor value={sql} onChange={setSql} onSubmit={run} />
 			{/key}
