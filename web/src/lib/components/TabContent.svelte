@@ -377,17 +377,95 @@
 				</div>
 			</div>
 		{:else}
-			<header class="border-b border-rule px-5 py-3">
-				<div class="flex items-baseline gap-1.5 font-mono text-[14px]">
-					<span class="text-ink-faint">{selectedDb}</span>
-					<span class="text-ink-ghost">/</span>
-					<span class="font-medium text-ink">{selectedTable}</span>
-				</div>
-				{#if rowSet}
-					<div class="mt-1 font-mono text-[10px] tracking-widest text-ink-faint uppercase">
-						{rowSet.returned} row{rowSet.returned === 1 ? '' : 's'} · limit {rowSet.limit}
+			<header class="flex items-center justify-between border-b border-rule px-5 py-2">
+				<div>
+					<div class="flex items-baseline gap-1.5 font-mono text-[14px]">
+						<span class="text-ink-faint">{selectedDb}</span>
+						<span class="text-ink-ghost">/</span>
+						<span class="font-medium text-ink">{selectedTable}</span>
 					</div>
+					{#if browseTab === 'data' && rowSet}
+						<div class="mt-1 font-mono text-[10px] tracking-widest text-ink-faint uppercase">
+							{rowSet.returned} row{rowSet.returned === 1 ? '' : 's'} · limit {rowSet.limit}
+						</div>
+					{:else if browseTab === 'schema' && schema}
+						<div class="mt-1 font-mono text-[10px] tracking-widest text-ink-faint uppercase">
+							{schema.length} column{schema.length === 1 ? '' : 's'}
+						</div>
+					{/if}
+				</div>
+				<div class="flex items-center gap-1">
+					<button
+						class="cursor-pointer rounded px-2.5 py-1 font-mono text-[10px] tracking-[0.22em] uppercase transition-colors {browseTab ===
+						'data'
+							? 'bg-cream-deep text-ink'
+							: 'text-ink-faint hover:bg-cream-soft hover:text-ink'}"
+						onclick={() => (browseTab = 'data')}
+					>
+						Data
+					</button>
+					<button
+						class="cursor-pointer rounded px-2.5 py-1 font-mono text-[10px] tracking-[0.22em] uppercase transition-colors {browseTab ===
+						'schema'
+							? 'bg-cream-deep text-ink'
+							: 'text-ink-faint hover:bg-cream-soft hover:text-ink'}"
+						onclick={() => (browseTab = 'schema')}
+					>
+						Schema
+					</button>
+				</div>
+			</header>
+
+			<div class="flex-1 overflow-auto">
+				{#if browseTab === 'data'}
+					{#if rowsLoading}
+						<div class="px-5 py-3 font-mono text-[11px] text-ink-faint italic">loading…</div>
+					{:else if rowsErr}
+						<pre
+							class="m-3 rounded bg-crimson-soft p-3 font-mono text-[12px] whitespace-pre-wrap text-crimson">{rowsErr}</pre>
+					{:else if rowSet}
+						<RowGrid columns={rowSet.columns} rows={rowSet.rows} empty="(empty)" />
+					{/if}
+				{:else if schemaErr}
+					<pre
+						class="m-3 rounded bg-crimson-soft p-3 font-mono text-[12px] whitespace-pre-wrap text-crimson">{schemaErr}</pre>
+				{:else if schema}
+					<table class="w-full font-mono text-[12px]">
+						<thead>
+							<tr class="border-b border-rule">
+								{#each ['column', 'type', 'null', 'key', 'default', 'extra'] as h (h)}
+									<th
+										class="px-3 py-2 text-left text-[10px] font-semibold tracking-[0.18em] text-ink-muted uppercase"
+									>
+										{h}
+									</th>
+								{/each}
+							</tr>
+						</thead>
+						<tbody>
+							{#each schema as col (col.name)}
+								<tr class="border-b border-rule/60">
+									<td class="px-3 py-1.5 font-medium text-ink">{col.name}</td>
+									<td class="px-3 py-1.5 text-ink-muted">{col.data_type}</td>
+									<td class="px-3 py-1.5 text-rust">
+										{col.nullable ? '✓' : ''}
+									</td>
+									<td class="px-3 py-1.5">
+										{#if col.key === 'PRI'}
+											<span class="rounded bg-mustard/15 px-1.5 py-0.5 text-[10px] tracking-widest text-mustard uppercase">pri</span>
+										{:else if col.key}
+											<span class="text-ink-muted">{col.key}</span>
+										{/if}
+									</td>
+									<td class="px-3 py-1.5 text-ink-muted">{col.default ?? ''}</td>
+									<td class="px-3 py-1.5 text-ink-muted">{col.extra ?? ''}</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
 				{/if}
+			</div>
+		{/if}
 			</header>
 
 			<div class="flex-1 overflow-auto">
