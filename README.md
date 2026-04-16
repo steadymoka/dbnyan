@@ -1,22 +1,23 @@
 # dbnyan
 
-Local-first MySQL admin tool — TablePlus/SequelAce 스타일을 단순화. Rust 백엔드 + SvelteKit 프론트, 단일 바이너리로 동작 가능. Claude Code 구독을 활용한 자연어 → SQL 생성기 내장.
+> 한국어 버전: [README.ko.md](./README.ko.md)
+
+A small, hand-built MySQL admin tool. Local-first, single-binary friendly, and shipped with a built-in natural-language → SQL generator that uses your **Claude Code subscription** instead of an API key.
+
+Built as a calmer, more opinionated alternative to TablePlus / SequelAce — everything happens in browser-style tabs on top of one Rust process.
+
+---
 
 ## Features
 
-- **Connections**: 폴더/라벨 + SSH 터널(키/agent 인증) + 평문 비번(MVP) 저장
-- **Tabs**: 브라우저 탭 스타일 — 새로고침/공유 URL로 상태 복원 (localStorage + URL 쿼리)
-- **Browse**: 데이터베이스/테이블 목록, 스키마 뷰, 행 200개 미리보기
-- **Query**: SQL 에디터 (⌘⏎ 실행) + 히스토리 (성공/실패/시간/행수)
-- **AI SQL Generator**: Claude Code 구독 경유 — 자연어 입력 → SQL 출력 → "Use" 버튼으로 에디터에 paste
+- **Connections** — folders, labels, optional **SSH tunnel** (key / agent auth), drag-to-reorganize, one-click clone
+- **Tabs** — browser-style; state persists in `localStorage` and the URL (`?cid=…&db=…&t=…&v=q`) so refreshes and shared links land on the same view
+- **Browse** — collapsed database picker, table list, schema view, 200-row preview
+- **Query** — SQL editor with **CodeMirror 6** syntax highlighting (`⌘⏎` to run), per-connection history with timing & success status
+- **AI SQL generator** — single-shot natural-language input that returns a SQL block; `Use →` pushes it straight into the editor. Wired through the local `claude` CLI (subscription auth), schema context auto-injected from the active database
+- **Editorial UI** — warm cream/paper palette, italic Fraunces serif display, JetBrains Mono for code, Plus Jakarta Sans for UI, single rust accent color
 
-## Requirements
-
-- macOS (Linux는 동작할 가능성 높지만 미검증)
-- [Rust](https://rustup.rs/) ≥ 1.80
-- [Bun](https://bun.sh/) (frontend 빌드/dev 서버용)
-- MySQL 인스턴스 (테스트할 대상)
-- AI 챗 기능 쓰려면 [Claude Code](https://claude.com/claude-code) 설치 + `claude login`
+---
 
 ## Quick start
 
@@ -24,7 +25,9 @@ Local-first MySQL admin tool — TablePlus/SequelAce 스타일을 단순화. Rus
 ./bin/start
 ```
 
-웹 빌드 → Rust 서버 기동 → 브라우저로 http://127.0.0.1:3939 열면 됨.
+Builds the web bundle and serves it from the Rust backend on a single port (default `3939`). Open <http://127.0.0.1:3939>.
+
+> The first run takes 3–5 minutes (release compile + initial bun install). Subsequent starts are cached and take a few seconds.
 
 ### Dev mode (HMR)
 
@@ -32,105 +35,171 @@ Local-first MySQL admin tool — TablePlus/SequelAce 스타일을 단순화. Rus
 ./bin/dev
 ```
 
-Rust 서버(:3939)는 백그라운드, SvelteKit dev 서버(:5173)가 포어그라운드. Vite 프록시가 `/api/*` 를 Rust로 흘려보냄. 프론트 수정 시 즉시 반영.
+Rust on `:3939`, SvelteKit dev server on `:5173` with Vite proxying `/api/*` to the backend. Open <http://localhost:5173>.
 
-### With portless ([vercel-labs/portless](https://github.com/vercel-labs/portless))
-
-`*.localhost` HTTPS 라우팅 셋업이 있으면:
+### `make` shortcuts
 
 ```bash
-portless dbnyan ./bin/start
+make            # list targets
+make dev        # = ./bin/dev
+make start      # = ./bin/start
+make portless   # spawn ./bin/start under portless (https://dbnyan.localhost)
+make build      # web build + cargo release
+make check      # cargo check + svelte-check
+make fmt        # cargo fmt + prettier
+make clean      # remove build artifacts
 ```
 
-portless가 ephemeral 포트를 잡아 `PORT` env로 넘겨주고, `bin/start`가 이를 받아 그 포트에 서버를 띄움. 접속:
+### portless ([vercel-labs/portless](https://github.com/vercel-labs/portless))
 
-```
-https://dbnyan.localhost:<portless-listen-port>
-```
-
-> 첫 실행은 release 컴파일 + web 빌드 때문에 3~5분 걸림. 이후엔 캐시되어 빠름.
-
-이미 떠 있는 인스턴스를 매핑하려면 alias 형태:
+If you have the `*.localhost` HTTPS proxy set up:
 
 ```bash
-./bin/start &                       # or in another terminal
-portless alias dbnyan 3939
+make portless                                # → https://dbnyan.localhost
+make portless PORTLESS_NAME=admin.dbnyan     # → https://admin.dbnyan.localhost
 ```
 
-### Environment
+`bin/start` honors the `PORT` env var that portless sets (priority: `DBNYAN_PORT` > `PORT` > `3939`).
 
-- `DBNYAN_PORT` — 서버 포트 (기본 3939). `PORT`보다 우선.
-- `PORT` — 위가 없으면 사용 (portless 같은 wrapper가 셋업).
-- `DBNYAN_DATA_DIR` — 앱 상태 SQLite 파일 위치 override (기본 macOS: `~/Library/Application Support/dbnyan/`)
+---
+
+## Requirements
+
+- **macOS** (Linux probably works, untested)
+- [Rust](https://rustup.rs/) ≥ 1.80
+- [Bun](https://bun.sh/) — used for the SvelteKit build / dev server
+- A **MySQL** instance to point at
+- For the AI generator: [Claude Code](https://claude.com/claude-code) installed and `claude login`’d. The server spawns `claude -p` and removes `ANTHROPIC_API_KEY` from the child env so subscription auth is used.
+
+---
 
 ## Architecture
 
 ```
-dbnyan/
-├── Cargo.toml                 # Rust workspace
-├── crates/
-│   ├── core/                  # lib: 커넥션 저장(SQLite) + MySQL 드라이버 + SSH 터널
-│   │   ├── migrations/
-│   │   └── src/
-│   │       ├── connection.rs   # 저장된 커넥션 CRUD
-│   │       ├── ssh.rs          # SSH 터널 설정 모델
-│   │       ├── tunnel.rs       # `ssh -N -L` 서브프로세스 관리
-│   │       ├── session.rs      # 활성 MySQL pool 매니저
-│   │       ├── mysql.rs        # 메타 쿼리 + 행 프리뷰
-│   │       ├── query.rs        # 임의 SQL 실행
-│   │       └── history.rs      # 쿼리 히스토리
-│   └── server/                # bin: axum HTTP 서버
-│       └── src/
-│           ├── main.rs
-│           ├── connections.rs  # /api/connections CRUD
-│           ├── runtime.rs      # /api/connections/:id/{databases,tables,query,history,...}
-│           └── chat.rs         # /api/connections/:id/chat (Claude Code 서브프로세스)
-└── web/                       # SvelteKit + Tailwind v4, adapter-static (SPA)
-    └── src/
-        ├── lib/
-        │   ├── api.ts          # 타입 + fetch 클라이언트
-        │   ├── stores/tabs.svelte.ts   # 탭 상태 + localStorage
-        │   └── components/
-        └── routes/+page.svelte
-```
-
-### Data flow
-
-```
 [Browser]
-  ↓ HTTP (REST + JSON)
+   │  HTTP (REST + JSON)
+   ▼
 [Rust axum :3939]
-  ├─ /api/* routes → core/
-  │     ├── SQLite (app state: connections, history)
-  │     └── MySQL pools (per active connection, with optional SSH tunnel)
-  └─ /(static) → web/build/  (SvelteKit SPA)
+   ├─ /api/*           → handlers in crates/server (calls into crates/core)
+   │     ├─ SQLite     (app state — connections, history)
+   │     └─ MySQL pools per active connection (optional SSH tunnel via `ssh -N -L`)
+   └─ /(static)        → tower-http ServeDir of web/build/  (SvelteKit SPA)
 ```
 
-AI SQL 생성:
 ```
-[Browser] → POST /api/connections/:id/chat → [Rust]
-  → spawn `claude -p "<schema context + user message>" --output-format json`
-    (uses local Claude Code subscription, env_remove ANTHROPIC_API_KEY)
-  → parse JSON, return { text, session_id, … }
+dbnyan/
+├── Cargo.toml                         # workspace
+├── bin/{dev,start}                    # entry-point scripts
+├── Makefile
+├── crates/
+│   ├── core/
+│   │   ├── migrations/*.sql           # sqlx migrations
+│   │   └── src/
+│   │       ├── connection.rs          # saved connections + CRUD
+│   │       ├── ssh.rs                 # SshConfig / SshAuth model
+│   │       ├── tunnel.rs              # `ssh -N -L` subprocess wrapper
+│   │       ├── session.rs             # active MySQL pools per connection
+│   │       ├── mysql.rs               # SHOW DBs/TABLES, schema, row preview
+│   │       ├── query.rs               # arbitrary SQL execution
+│   │       └── history.rs             # query history (SQLite)
+│   └── server/
+│       └── src/
+│           ├── main.rs                # router + state + static fallback
+│           ├── connections.rs         # /api/connections CRUD
+│           ├── runtime.rs             # /api/connections/:id/{databases,tables,query,history,…}
+│           └── chat.rs                # /api/connections/:id/chat — spawns `claude -p`
+└── web/                               # SvelteKit 5 + Tailwind v4 + adapter-static
+    └── src/
+        ├── app.html                   # Google Fonts import
+        ├── routes/
+        │   ├── +page.svelte           # tab bar, empty state, modal mount
+        │   └── layout.css             # design tokens (@theme), base layer
+        └── lib/
+            ├── api.ts                 # typed fetch client
+            ├── stores/tabs.svelte.ts  # tab + per-tab state, localStorage
+            └── components/
+                ├── TabContent.svelte  # sidebar + main browse view
+                ├── QueryView.svelte   # editor + history + generator container
+                ├── SqlEditor.svelte   # CodeMirror 6 wrapper, editorial theme
+                ├── SqlGenerator.svelte# AI generator card
+                ├── RowGrid.svelte     # data table
+                ├── NewTabModal.svelte # connection picker / form host
+                └── ConnectionForm.svelte
 ```
 
-### Why Rust + SvelteKit (not Tauri / Electron)
+### AI flow
 
-향후 Tauri 데스크톱 앱으로 전환할 수 있도록 백엔드를 Rust로 두고 프론트를 정적 SvelteKit 번들로 분리. 현재는 로컬 HTTP로 통신하지만, Tauri 전환 시 `invoke()` IPC로 자연스럽게 갈아끼울 수 있음.
+```
+[Browser] ──POST /api/connections/:id/chat──▶ [Rust]
+                                                │
+                                                ▼
+                                  spawn `claude -p "<schema context + user message>"
+                                          --output-format json`
+                                  (env_remove ANTHROPIC_API_KEY → subscription)
+                                                │
+                                                ▼
+                                  parse JSON → { text, session_id, … }
+```
+
+The generator is intentionally one-shot — each prompt re-attaches the active database’s table list as system context. No multi-turn / no chat thread; the value is **prompt → SQL block → push into the editor**, not conversation.
+
+### Why Rust + SvelteKit
+
+The split keeps the door open for shipping as a Tauri desktop app later: the SvelteKit bundle is fully static (`adapter-static`) and the Rust backend is the same crate that would back Tauri’s `invoke()` IPC. Today everything talks over local HTTP on `127.0.0.1`.
+
+---
 
 ## Storage
 
-- **앱 상태** (등록된 커넥션, 쿼리 히스토리): SQLite 파일 (`<data_dir>/dbnyan/app.db`, WAL 모드)
-- **비밀번호**: 현재는 평문 (MVP) — UI에 경고 배너. macOS Keychain 연동은 후순위
+- **App state** (saved connections, query history) — single SQLite file (`<data_dir>/dbnyan/app.db`, WAL mode)
+  - macOS: `~/Library/Application Support/dbnyan/app.db`
+  - Override with `DBNYAN_DATA_DIR=./data ./bin/start`
+- **Tab UI state** (which tabs are open, selected db/table, draft SQL, view mode) — `localStorage` (`dbnyan.tabs.v1`). Survives server restart, refresh, and the URL `?cid=…&db=…&t=…&v=q` reflects the active tab so deep links work.
+- **Passwords** — currently plaintext in SQLite (MVP — there’s a yellow notice in the UI). Keychain integration is on the to-do list.
+
+---
+
+## Environment
+
+| Var | Default | Notes |
+|-----|---------|-------|
+| `DBNYAN_PORT` | `3939` | Highest priority |
+| `PORT` | — | Used if `DBNYAN_PORT` is unset (e.g. set by portless) |
+| `DBNYAN_DATA_DIR` | platform `data_dir/dbnyan/` | Where `app.db` lives |
+| `RUST_LOG` | `info,sqlx=warn,tower_http=info` | tracing-subscriber filter (e.g. `RUST_LOG=info,sqlx=info` to log every SQL the backend runs) |
+
+---
+
+## Debugging
+
+- **Backend logs** — `RUST_LOG=debug ./bin/start` for everything; `RUST_LOG=info,sqlx=info` to see executed SQL
+- **API directly** — anything in the UI is a normal REST call: `curl localhost:3939/api/connections | jq`, etc.
+- **App SQLite** — `sqlite3 "$HOME/Library/Application Support/dbnyan/app.db"` then `.tables`, `SELECT * FROM connections;`, `SELECT * FROM query_history ORDER BY executed_at DESC LIMIT 10;`
+- **AI standalone** — `unset ANTHROPIC_API_KEY && claude -p "your prompt" --output-format json | jq` to confirm the CLI side independently
+- **Frontend** — Browser DevTools (Network for `/api/*`, Console for `localStorage.getItem('dbnyan.tabs.v1')`)
+- **Reset everything** — `rm "$HOME/Library/Application Support/dbnyan/app.db"*` then restart
+
+---
 
 ## Limitations / TODO
 
-- MySQL only (Postgres/SQLite 지원은 후속)
-- SSH password 인증 미지원 (key/agent 만)
-- AI 응답 비스트리밍 (5~15초 대기)
-- SQL 에디터 신택스 하이라이팅 없음 (textarea — CodeMirror 후속)
-- 비번 평문 저장
-- 셀 클릭 시 전체 값 모달 없음 (truncate + title tooltip)
+- MySQL only (PostgreSQL / SQLite drivers later)
+- SSH password auth not supported — use a key or `ssh-agent`
+- AI responses are not streamed (5–15 s wait for the full text)
+- Plaintext password storage (Keychain integration pending)
+- No cell-expand modal yet — long values are truncated with a `title` tooltip
+- No automated tests — backend has obvious unit-test candidates (`query::is_select_like`, `connection` CRUD, `history` CRUD); UI relies on manual smoke testing
+
+---
+
+## Tech stack
+
+- **Backend** — Rust, [axum](https://github.com/tokio-rs/axum), [sqlx](https://github.com/launchbadge/sqlx), [tower-http](https://github.com/tower-rs/tower-http), [chrono](https://github.com/chronotope/chrono), tokio
+- **Frontend** — [SvelteKit 5](https://svelte.dev) (runes mode), [Tailwind CSS v4](https://tailwindcss.com), [CodeMirror 6](https://codemirror.net) with `@codemirror/lang-sql`
+- **Type / build** — TypeScript, Bun
+- **Fonts** — Fraunces (display), Plus Jakarta Sans (UI), JetBrains Mono (code)
+
+---
 
 ## License
 
