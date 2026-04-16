@@ -429,13 +429,16 @@
 				<div class="flex flex-1 items-center gap-px overflow-x-auto overflow-y-hidden">
 					{#each queryTabs as q, i (q.id)}
 						{@const active = q.id === activeQueryId}
+						{@const closable = queryTabs.length > 1}
 						<div
 							class="group/q relative flex shrink-0 items-stretch rounded transition-colors {active
 								? 'bg-cream-deep'
 								: 'hover:bg-cream-soft'}"
 						>
 							<button
-								class="cursor-pointer py-1 pr-1 pl-2.5 font-mono text-[11px] {active
+								class="cursor-pointer py-1 pl-2.5 font-mono text-[11px] {closable
+									? 'pr-1'
+									: 'pr-2.5'} {active
 									? 'font-medium text-ink'
 									: 'text-ink-faint hover:text-ink'}"
 								onclick={() => activateQuery(q.id)}
@@ -444,7 +447,7 @@
 									{queryLabel(q, i)}
 								</span>
 							</button>
-							{#if queryTabs.length > 1}
+							{#if closable}
 								<button
 									class="my-auto mr-1 grid h-4 w-4 cursor-pointer place-items-center rounded text-ink-faint transition-all hover:bg-crimson-soft hover:text-crimson {active
 										? 'opacity-100'
