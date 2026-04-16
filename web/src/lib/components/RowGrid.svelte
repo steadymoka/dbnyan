@@ -3,8 +3,18 @@
 		columns: string[];
 		rows: unknown[][];
 		empty?: string;
+		sortColumn?: string | null;
+		sortDir?: 'asc' | 'desc';
+		onSort?: (col: string) => void;
 	};
-	let { columns, rows, empty = '(no rows)' }: Props = $props();
+	let {
+		columns,
+		rows,
+		empty = '(no rows)',
+		sortColumn = null,
+		sortDir = 'asc',
+		onSort
+	}: Props = $props();
 
 	function fmtCell(v: unknown): string {
 		if (v === null || v === undefined) return 'NULL';
@@ -21,10 +31,26 @@
 			<thead>
 				<tr class="border-b border-rule">
 					{#each columns as c (c)}
+						{@const active = sortColumn === c}
 						<th
-							class="bg-cream-soft/60 px-3 py-2 text-left text-[10px] font-semibold tracking-[0.18em] whitespace-nowrap text-ink-muted uppercase"
+							class="bg-cream-soft/60 p-0 text-left text-[10px] font-semibold tracking-[0.18em] whitespace-nowrap text-ink-muted uppercase"
 						>
-							{c}
+							{#if onSort}
+								<button
+									class="flex w-full cursor-pointer items-center justify-between gap-1.5 px-3 py-2 transition-colors hover:bg-cream-deep/60 {active
+										? 'text-rust'
+										: 'text-ink-muted'}"
+									onclick={() => onSort?.(c)}
+									title="click to sort"
+								>
+									<span>{c}</span>
+									<span class="text-[9px] {active ? 'text-rust' : 'text-ink-ghost opacity-0 group-hover:opacity-100'}">
+										{active ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}
+									</span>
+								</button>
+							{:else}
+								<div class="px-3 py-2">{c}</div>
+							{/if}
 						</th>
 					{/each}
 				</tr>

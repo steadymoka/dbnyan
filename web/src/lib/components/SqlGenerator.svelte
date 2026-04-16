@@ -64,25 +64,27 @@
 <section class="border-b border-rule bg-cream-soft/60">
 	<div class="flex items-start gap-3 px-4 pt-3 pb-2">
 		<div class="flex shrink-0 flex-col items-center gap-1 pt-1">
-			<span class="font-display text-[14px] italic text-rust">ai</span>
+			<span class="font-display text-[14px] italic text-rust">ask</span>
 			<span class="h-3 w-px bg-rule"></span>
 		</div>
-		<textarea
-			class="block min-h-[40px] flex-1 resize-none rounded-md border border-rule bg-cream px-3 py-2 font-sans text-[13px] text-ink placeholder:text-ink-faint placeholder:italic focus:border-rust focus:outline-none"
-			placeholder="describe the query you want…  (⌘⏎)"
-			bind:value={prompt}
-			onkeydown={onKey}
-			disabled={loading}
-			rows="2"
-			spellcheck="false"
-		></textarea>
-		<button
-			class="shrink-0 cursor-pointer rounded-md bg-ink px-4 py-2 font-mono text-[11px] tracking-[0.18em] text-cream uppercase transition-colors hover:bg-rust disabled:cursor-not-allowed disabled:opacity-40"
-			onclick={generate}
-			disabled={loading || !prompt.trim()}
-		>
-			{loading ? '…' : 'generate'}
-		</button>
+		<div class="relative flex-1">
+			<textarea
+				class="block min-h-[44px] w-full resize-none rounded-md border border-rule bg-cream px-3 py-2 pr-3 pb-9 font-sans text-[13px] text-ink placeholder:text-ink-faint placeholder:italic focus:border-rust focus:outline-none"
+				placeholder="describe the query you want…  (⌘⏎)"
+				bind:value={prompt}
+				onkeydown={onKey}
+				disabled={loading}
+				rows="2"
+				spellcheck="false"
+			></textarea>
+			<button
+				class="absolute right-1.5 bottom-1.5 cursor-pointer rounded bg-ink px-2.5 py-1 font-mono text-[10px] tracking-[0.18em] text-cream uppercase transition-colors hover:bg-rust disabled:cursor-not-allowed disabled:opacity-40"
+				onclick={generate}
+				disabled={loading || !prompt.trim()}
+			>
+				{loading ? '…' : 'generate'}
+			</button>
+		</div>
 	</div>
 
 	{#if error}

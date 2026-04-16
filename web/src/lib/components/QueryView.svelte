@@ -150,18 +150,31 @@
 	<div class="flex flex-1 flex-col overflow-hidden">
 		<SqlGenerator {connectionId} {database} onUseSql={setSql} />
 
-		<div class="flex items-center gap-3 border-b border-rule bg-cream-soft/40 px-3 py-2">
+		<!-- editor (active query) with floating Run -->
+		<div class="relative h-48 shrink-0 border-b border-rule">
+			{#key activeQueryId}
+				<SqlEditor value={sql} onChange={setSql} onSubmit={run} />
+			{/key}
 			<button
-				class="cursor-pointer rounded-md bg-ink px-3.5 py-1.5 font-mono text-[10.5px] tracking-[0.18em] text-cream uppercase transition-colors hover:bg-rust disabled:cursor-not-allowed disabled:opacity-40"
+				class="absolute right-3 bottom-3 cursor-pointer rounded-md bg-ink px-3.5 py-1.5 font-mono text-[10.5px] tracking-[0.18em] text-cream uppercase shadow-[0_4px_12px_-4px_rgba(26,24,20,0.35)] transition-colors hover:bg-rust disabled:cursor-not-allowed disabled:opacity-40"
 				onclick={run}
 				disabled={running || !sql.trim()}
+				title="⌘⏎ to run"
 			>
 				{running ? '…' : 'run'}
 			</button>
-			<span class="font-mono text-[10px] tracking-widest text-ink-faint uppercase">⌘⏎</span>
+			<span
+				class="pointer-events-none absolute right-[88px] bottom-[14px] font-mono text-[9px] tracking-widest text-ink-ghost uppercase select-none"
+			>
+				⌘⏎
+			</span>
+		</div>
+
+		<!-- result (active query) -->
+		<div class="flex-1 overflow-auto bg-cream">
 			{#if result}
-				<span
-					class="ml-auto font-mono text-[10px] tracking-widest text-ink-faint uppercase whitespace-nowrap"
+				<div
+					class="flex items-center justify-end border-b border-rule bg-cream-soft/40 px-4 py-1 font-mono text-[10px] tracking-widest text-ink-faint uppercase"
 				>
 					{#if result.kind === 'rows'}
 						{result.returned} row{result.returned === 1 ? '' : 's'}
@@ -169,19 +182,8 @@
 						{result.rows_affected} affected
 					{/if}
 					· {result.duration_ms}ms
-				</span>
+				</div>
 			{/if}
-		</div>
-
-		<!-- editor (active query) -->
-		<div class="h-44 shrink-0 border-b border-rule">
-			{#key activeQueryId}
-				<SqlEditor value={sql} onChange={setSql} onSubmit={run} />
-			{/key}
-		</div>
-
-		<!-- result (active query) -->
-		<div class="flex-1 overflow-auto bg-cream">
 			{#if error}
 				<pre
 					class="m-3 rounded bg-crimson-soft p-3 font-mono text-[12px] whitespace-pre-wrap text-crimson">{error}</pre>

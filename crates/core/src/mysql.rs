@@ -89,12 +89,25 @@ pub async fn preview_rows(
     db: &str,
     table: &str,
     limit: u32,
+    sort_column: Option<&str>,
+    sort_desc: bool,
 ) -> Result<RowSet> {
     let limit = limit.clamp(1, 1000);
+    let order_clause = sort_column
+        .filter(|c| !c.is_empty())
+        .map(|c| {
+            format!(
+                " ORDER BY {} {}",
+                quote_ident(c),
+                if sort_desc { "DESC" } else { "ASC" }
+            )
+        })
+        .unwrap_or_default();
     let sql = format!(
-        "SELECT * FROM {}.{} LIMIT {}",
+        "SELECT * FROM {}.{}{} LIMIT {}",
         quote_ident(db),
         quote_ident(table),
+        order_clause,
         limit
     );
     let rows = sqlx::query(&sql).fetch_all(pool).await?;

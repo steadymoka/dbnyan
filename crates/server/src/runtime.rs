@@ -82,6 +82,10 @@ async fn describe_table(
 struct PreviewQuery {
     #[serde(default = "default_limit")]
     limit: u32,
+    #[serde(default)]
+    sort: Option<String>,
+    #[serde(default)]
+    dir: Option<String>,
 }
 fn default_limit() -> u32 {
     200
@@ -93,8 +97,10 @@ async fn preview_rows(
     Query(q): Query<PreviewQuery>,
 ) -> AppResult<Json<mysql::RowSet>> {
     let session = open_session(&state, &id).await?;
+    let sort_desc = matches!(q.dir.as_deref(), Some("desc") | Some("DESC"));
     Ok(Json(
-        mysql::preview_rows(&session.pool, &db, &table, q.limit).await?,
+        mysql::preview_rows(&session.pool, &db, &table, q.limit, q.sort.as_deref(), sort_desc)
+            .await?,
     ))
 }
 

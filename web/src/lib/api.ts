@@ -140,10 +140,22 @@ export const api = {
 			fetch(
 				`/api/connections/${enc(id)}/databases/${enc(db)}/tables/${enc(table)}/schema`
 			).then(handle) as Promise<ColumnInfo[]>,
-		rows: (id: string, db: string, table: string, limit = 200) =>
-			fetch(
-				`/api/connections/${enc(id)}/databases/${enc(db)}/tables/${enc(table)}/rows?limit=${limit}`
-			).then(handle) as Promise<RowSet>
+		rows: (
+			id: string,
+			db: string,
+			table: string,
+			opts: { limit?: number; sort?: string | null; dir?: 'asc' | 'desc' } = {}
+		) => {
+			const params = new URLSearchParams();
+			params.set('limit', String(opts.limit ?? 200));
+			if (opts.sort) {
+				params.set('sort', opts.sort);
+				params.set('dir', opts.dir ?? 'asc');
+			}
+			return fetch(
+				`/api/connections/${enc(id)}/databases/${enc(db)}/tables/${enc(table)}/rows?${params}`
+			).then(handle) as Promise<RowSet>;
+		}
 	},
 	queries: {
 		run: (id: string, sql: string, database?: string) =>
