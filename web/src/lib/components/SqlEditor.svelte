@@ -2,6 +2,7 @@
 	import { onDestroy, onMount } from 'svelte';
 	import { basicSetup, EditorView } from 'codemirror';
 	import { keymap } from '@codemirror/view';
+	import { Prec } from '@codemirror/state';
 	import { sql } from '@codemirror/lang-sql';
 	import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 	import { tags as t } from '@lezer/highlight';
@@ -41,16 +42,21 @@
 				basicSetup,
 				sql(),
 				syntaxHighlighting(editorialHighlight),
-				keymap.of([
-					{
-						key: 'Mod-Enter',
-						preventDefault: true,
-						run: () => {
-							onSubmit?.();
-							return true;
+				// Highest priority so it intercepts the default Enter handler
+				// (which would otherwise insert a newline first).
+				Prec.highest(
+					keymap.of([
+						{
+							key: 'Mod-Enter',
+							preventDefault: true,
+							stopPropagation: true,
+							run: () => {
+								onSubmit?.();
+								return true;
+							}
 						}
-					}
-				]),
+					])
+				),
 				EditorView.updateListener.of((u) => {
 					if (u.docChanged && !applyingExternal) {
 						onChange(u.state.doc.toString());
