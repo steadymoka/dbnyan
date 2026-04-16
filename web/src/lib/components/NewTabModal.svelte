@@ -162,18 +162,15 @@
 		aria-modal="true"
 		tabindex="-1"
 	>
-		<div class="flex items-baseline justify-between border-b border-rule px-6 py-5">
-			<h2 class="font-display text-2xl leading-none italic text-ink">
-				{#if view.kind === 'picker'}
-					new tab<span class="text-rust">.</span>
-				{:else if view.kind === 'new'}
-					new connection<span class="text-rust">.</span>
-				{:else}
-					edit connection<span class="text-rust">.</span>
+		<div class="flex items-center justify-between border-b border-rule px-5 py-3">
+			<h2 class="text-[14px] font-medium text-ink">
+				{#if view.kind === 'picker'}New tab
+				{:else if view.kind === 'new'}New connection
+				{:else}Edit connection
 				{/if}
 			</h2>
 			<button
-				class="cursor-pointer text-2xl leading-none text-ink-faint transition-colors hover:text-rust"
+				class="cursor-pointer text-xl leading-none text-ink-faint transition-colors hover:text-rust"
 				onclick={onclose}
 				aria-label="close"
 			>
@@ -192,8 +189,8 @@
 						no saved connections yet
 					</p>
 				{:else}
-					<p class="mb-3 font-mono text-[10px] tracking-widest text-ink-faint uppercase">
-						drag to reorder folder · hover for clone & edit
+					<p class="mb-3 text-[11px] text-ink-faint">
+						Drag to reorder folder · hover a row for clone &amp; edit.
 					</p>
 					{#each grouped as g (g.key)}
 						<section
