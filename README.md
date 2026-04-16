@@ -34,9 +34,33 @@ Local-first MySQL admin tool — TablePlus/SequelAce 스타일을 단순화. Rus
 
 Rust 서버(:3939)는 백그라운드, SvelteKit dev 서버(:5173)가 포어그라운드. Vite 프록시가 `/api/*` 를 Rust로 흘려보냄. 프론트 수정 시 즉시 반영.
 
+### With portless ([vercel-labs/portless](https://github.com/vercel-labs/portless))
+
+`*.localhost` HTTPS 라우팅 셋업이 있으면:
+
+```bash
+portless dbnyan ./bin/start
+```
+
+portless가 ephemeral 포트를 잡아 `PORT` env로 넘겨주고, `bin/start`가 이를 받아 그 포트에 서버를 띄움. 접속:
+
+```
+https://dbnyan.localhost:<portless-listen-port>
+```
+
+> 첫 실행은 release 컴파일 + web 빌드 때문에 3~5분 걸림. 이후엔 캐시되어 빠름.
+
+이미 떠 있는 인스턴스를 매핑하려면 alias 형태:
+
+```bash
+./bin/start &                       # or in another terminal
+portless alias dbnyan 3939
+```
+
 ### Environment
 
-- `DBNYAN_PORT` — 서버 포트 (기본 3939)
+- `DBNYAN_PORT` — 서버 포트 (기본 3939). `PORT`보다 우선.
+- `PORT` — 위가 없으면 사용 (portless 같은 wrapper가 셋업).
 - `DBNYAN_DATA_DIR` — 앱 상태 SQLite 파일 위치 override (기본 macOS: `~/Library/Application Support/dbnyan/`)
 
 ## Architecture
