@@ -464,7 +464,14 @@
 						<pre
 							class="m-3 rounded bg-crimson-soft p-3 font-mono text-[12px] whitespace-pre-wrap text-crimson">{rowsErr}</pre>
 					{:else if rowSet}
-						<RowGrid columns={rowSet.columns} rows={rowSet.rows} empty="(empty)" />
+						<RowGrid
+							columns={rowSet.columns}
+							rows={rowSet.rows}
+							empty="(empty)"
+							sortColumn={sortCol}
+							{sortDir}
+							onSort={onColumnSort}
+						/>
 					{/if}
 				{:else if schemaErr}
 					<pre
