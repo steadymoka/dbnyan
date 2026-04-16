@@ -12,6 +12,10 @@
 	let saved = $state<Connection[]>([]);
 	let loadErr = $state<string | null>(null);
 
+	// Drag & drop state for moving connections between folders
+	let dragId = $state<string | null>(null);
+	let dropFolder = $state<string | null | undefined>(undefined);
+
 	async function refresh() {
 		try {
 			saved = await api.connections.list();
@@ -34,20 +38,102 @@
 		return () => window.removeEventListener('keydown', onKey);
 	});
 
-	const grouped = $derived.by(() => {
+	type Group = { folder: string | null; key: string; items: Connection[] };
+
+	const grouped = $derived.by<Group[]>(() => {
 		const m = new Map<string, Connection[]>();
 		for (const c of saved) {
-			const k = c.folder || '(no folder)';
+			const k = c.folder ?? '';
 			if (!m.has(k)) m.set(k, []);
 			m.get(k)!.push(c);
 		}
-		return [...m.entries()].sort(([a], [b]) => a.localeCompare(b));
+		const groups: Group[] = [...m.entries()].map(([key, items]) => ({
+			folder: key === '' ? null : key,
+			key: key === '' ? '(no folder)' : key,
+			items
+		}));
+		// Always keep an empty (no folder) bucket so users can drop items to ungroup.
+		if (!groups.find((g) => g.folder === null)) {
+			groups.push({ folder: null, key: '(no folder)', items: [] });
+		}
+		groups.sort((a, b) => {
+			// (no folder) goes last for tidiness
+			if (a.folder === null) return 1;
+			if (b.folder === null) return -1;
+			return a.key.localeCompare(b.key);
+		});
+		return groups;
 	});
 
 	function openTab(c: Connection) {
 		tabs.open(c);
 		onclose();
 	}
+
+	function asInput(c: Connection): ConnectionInput {
+		return {
+			name: c.name,
+			host: c.host,
+			port: c.port,
+			username: c.username,
+			password: c.password,
+			database: c.database,
+			folder: c.folder,
+			ssh: c.ssh
+		};
+	}
+
+	async function clone(c: Connection, e: Event) {
+		e.stopPropagation();
+		const cloned = await api.connections.create({
+			...asInput(c),
+			name: `${c.name} copy`
+		});
+		await refresh();
+		view = { kind: 'edit', conn: cloned };
+	}
+
+	// --- Drag & drop ---
+
+	function onDragStart(e: DragEvent, c: Connection) {
+		if (!e.dataTransfer) return;
+		e.dataTransfer.setData('text/plain', c.id);
+		e.dataTransfer.effectAllowed = 'move';
+		dragId = c.id;
+	}
+
+	function onDragEnd() {
+		dragId = null;
+		dropFolder = undefined;
+	}
+
+	function onDragOver(e: DragEvent, folder: string | null) {
+		e.preventDefault();
+		if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+		dropFolder = folder;
+	}
+
+	function onDragLeave(folder: string | null) {
+		if (dropFolder === folder) dropFolder = undefined;
+	}
+
+	async function onDrop(e: DragEvent, folder: string | null) {
+		e.preventDefault();
+		const id = e.dataTransfer?.getData('text/plain') || dragId;
+		dropFolder = undefined;
+		dragId = null;
+		if (!id) return;
+		const c = saved.find((x) => x.id === id);
+		if (!c) return;
+		if ((c.folder ?? null) === folder) return;
+		await api.connections.update(id, {
+			...asInput(c),
+			folder: folder ?? undefined
+		});
+		await refresh();
+	}
+
+	// --- Edit / save / delete ---
 
 	async function onCreate(input: ConnectionInput) {
 		const c = await api.connections.create(input);
@@ -100,28 +186,65 @@
 				{#if saved.length === 0}
 					<p class="text-sm text-gray-500">no saved connections yet.</p>
 				{:else}
-					{#each grouped as [folder, items] (folder)}
-						<section class="mb-4">
-							<h3 class="mb-1 text-xs tracking-wide text-gray-500 uppercase">{folder}</h3>
-							<ul class="divide-y rounded border">
-								{#each items as c (c.id)}
-									<li class="flex items-center justify-between px-3 py-2 hover:bg-gray-50">
-										<button class="flex-1 text-left" onclick={() => openTab(c)}>
-											<div class="text-sm font-medium">{c.name}</div>
-											<div class="text-xs text-gray-500">
-												{c.username}@{c.host}:{c.port}{c.database ? `/${c.database}` : ''}
-												{#if c.ssh}· ssh→{c.ssh.host}{/if}
-											</div>
-										</button>
-										<button
-											class="ml-2 text-xs text-gray-400 hover:text-gray-700"
-											onclick={() => (view = { kind: 'edit', conn: c })}
+					<p class="mb-2 text-[11px] text-gray-400">
+						drag to move between folders · hover for clone/edit
+					</p>
+					{#each grouped as g (g.key)}
+						<section
+							class="mb-4 rounded border-2 border-dashed transition-colors {dropFolder === g.folder
+								? 'border-blue-400 bg-blue-50/40'
+								: 'border-transparent'}"
+							ondragover={(e) => onDragOver(e, g.folder)}
+							ondragleave={() => onDragLeave(g.folder)}
+							ondrop={(e) => onDrop(e, g.folder)}
+							role="group"
+						>
+							<h3 class="mb-1 px-1 text-xs tracking-wide text-gray-500 uppercase">{g.key}</h3>
+							{#if g.items.length === 0}
+								<div class="rounded border border-dashed border-gray-200 px-3 py-2 text-xs text-gray-400">
+									(empty — drop here to ungroup)
+								</div>
+							{:else}
+								<ul class="divide-y rounded border">
+									{#each g.items as c (c.id)}
+										<li
+											class="group flex items-center justify-between px-3 py-2 hover:bg-gray-50 {dragId ===
+											c.id
+												? 'opacity-40'
+												: ''}"
+											draggable="true"
+											ondragstart={(e) => onDragStart(e, c)}
+											ondragend={onDragEnd}
 										>
-											edit
-										</button>
-									</li>
-								{/each}
-							</ul>
+											<button class="flex-1 cursor-pointer text-left" onclick={() => openTab(c)}>
+												<div class="text-sm font-medium">{c.name}</div>
+												<div class="text-xs text-gray-500">
+													{c.username}@{c.host}:{c.port}{c.database ? `/${c.database}` : ''}
+													{#if c.ssh}· ssh→{c.ssh.host}{/if}
+												</div>
+											</button>
+											<div class="ml-2 flex items-center gap-2 text-xs opacity-0 group-hover:opacity-100">
+												<button
+													class="text-gray-500 hover:text-gray-900"
+													title="duplicate"
+													onclick={(e) => clone(c, e)}
+												>
+													clone
+												</button>
+												<button
+													class="text-gray-500 hover:text-gray-900"
+													onclick={(e) => {
+														e.stopPropagation();
+														view = { kind: 'edit', conn: c };
+													}}
+												>
+													edit
+												</button>
+											</div>
+										</li>
+									{/each}
+								</ul>
+							{/if}
 						</section>
 					{/each}
 				{/if}
