@@ -152,11 +152,26 @@
 			{#each tabs.tabs as t (t.id)}
 				{@const swatch = colorHex(t.color)}
 				{@const active = t.id === tabs.activeId}
+				{@const isDropTarget = dropHint?.tabId === t.id}
 				<div
 					class="group/tab relative flex h-9 shrink-0 items-stretch rounded-t-md border border-b-0 transition-colors {active
 						? 'z-10 -mb-px border-rule bg-cream'
-						: 'border-transparent hover:bg-cream/60'}"
+						: 'border-transparent hover:bg-cream/60'} {dragTabId === t.id ? 'opacity-40' : ''}"
+					draggable="true"
+					ondragstart={(e) => onTabDragStart(e, t.id)}
+					ondragend={onTabDragEnd}
+					ondragover={(e) => onTabDragOver(e, t.id)}
+					ondragleave={() => onTabDragLeave(t.id)}
+					ondrop={(e) => onTabDrop(e, t.id)}
 				>
+					{#if isDropTarget}
+						<span
+							class="pointer-events-none absolute top-1 bottom-0 w-[2px] rounded-sm bg-rust {dropHint?.before
+								? '-left-[2px]'
+								: '-right-[2px]'}"
+							aria-hidden="true"
+						></span>
+					{/if}
 					{#if active}
 						<span
 							class="absolute top-0 right-2 left-2 h-[2px] rounded-b-sm"
