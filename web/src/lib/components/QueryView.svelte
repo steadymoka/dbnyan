@@ -2,6 +2,7 @@
 	import { api, type HistoryEntry, type QueryResult } from '$lib/api';
 	import { tabs } from '$lib/stores/tabs.svelte';
 	import RowGrid from './RowGrid.svelte';
+	import SqlEditor from './SqlEditor.svelte';
 	import SqlGenerator from './SqlGenerator.svelte';
 
 	type Props = {
@@ -43,13 +44,6 @@
 			history = await api.history.list(connectionId, 50);
 		} catch {
 			/* ignore */
-		}
-	}
-
-	function onEditorKey(e: KeyboardEvent) {
-		if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-			e.preventDefault();
-			run();
 		}
 	}
 
@@ -104,14 +98,9 @@
 			{/if}
 		</div>
 
-		<textarea
-			class="block min-h-32 w-full resize-none border-b border-gray-200 px-3 py-2 font-mono text-sm focus:outline-none"
-			placeholder="-- SELECT * FROM ..."
-			value={sql}
-			oninput={(e) => setSql((e.currentTarget as HTMLTextAreaElement).value)}
-			onkeydown={onEditorKey}
-			spellcheck="false"
-		></textarea>
+		<div class="h-44 shrink-0 border-b border-gray-200">
+			<SqlEditor value={sql} onChange={setSql} onSubmit={run} />
+		</div>
 
 		<div class="flex-1 overflow-auto">
 			{#if error}

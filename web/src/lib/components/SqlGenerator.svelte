@@ -43,8 +43,16 @@
 	}
 
 	function extractSql(text: string): string | null {
-		const m = text.match(/```sql\s*([\s\S]*?)```/i);
-		return m ? m[1].trim() : null;
+		// ```sql ... ```
+		let m = text.match(/```\s*sql\s*\r?\n([\s\S]*?)```/i);
+		if (m) return m[1].trim();
+		// ```sql ... </sql>   (model occasionally closes with </sql>)
+		m = text.match(/```\s*sql\s*\r?\n([\s\S]*?)<\/sql>/i);
+		if (m) return m[1].trim();
+		// bare ``` block (no lang tag)
+		m = text.match(/```\s*\r?\n([\s\S]*?)```/);
+		if (m) return m[1].trim();
+		return null;
 	}
 
 	async function copy() {
