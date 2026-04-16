@@ -50,8 +50,8 @@ fi
 
 case "$STATUS" in
   up)       echo "🐈" ;;
-  starting) echo "🐾" ;;
-  *)        echo "🐈‍⬛" ;;
+  starting) echo "⌯" ;;
+  *)        echo "⌯" ;;
 esac
 
 echo "---"
