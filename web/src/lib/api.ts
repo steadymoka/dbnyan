@@ -72,6 +72,15 @@ export type QueryResult =
 			duration_ms: number;
 	  };
 
+export type Favorite = {
+	id: string;
+	connection_id: string;
+	name: string;
+	sql: string;
+	created_at: string;
+	updated_at: string;
+};
+
 export type HistoryEntry = {
 	id: string;
 	connection_id: string;
@@ -155,6 +164,22 @@ export const api = {
 			fetch(`/api/connections/${enc(id)}/history`, { method: 'DELETE' }).then(handle) as Promise<{
 				cleared: number;
 			}>
+	},
+	favorites: {
+		list: (id: string) =>
+			fetch(`/api/connections/${enc(id)}/favorites`).then(handle) as Promise<Favorite[]>,
+		create: (id: string, body: { name: string; sql: string }) =>
+			fetch(`/api/connections/${enc(id)}/favorites`, jsonInit('POST', body)).then(
+				handle
+			) as Promise<Favorite>,
+		update: (id: string, fid: string, body: { name?: string; sql?: string }) =>
+			fetch(`/api/connections/${enc(id)}/favorites/${enc(fid)}`, jsonInit('PATCH', body)).then(
+				handle
+			) as Promise<Favorite>,
+		delete: (id: string, fid: string) =>
+			fetch(`/api/connections/${enc(id)}/favorites/${enc(fid)}`, { method: 'DELETE' }).then(
+				handle
+			) as Promise<{ deleted: boolean }>
 	},
 	sessions: {
 		close: (id: string) =>

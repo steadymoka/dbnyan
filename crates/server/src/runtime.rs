@@ -4,7 +4,7 @@ use axum::extract::{Path, Query, State};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use dbnyan_core::{
-    connection, history, mysql,
+    connection, favorites, history, mysql,
     query::{self, QueryResult},
     session::Session,
 };
@@ -33,6 +33,14 @@ pub fn router() -> Router<AppState> {
         .route(
             "/connections/{id}/history/{hid}",
             delete(delete_history_entry),
+        )
+        .route(
+            "/connections/{id}/favorites",
+            get(list_favorites).post(create_favorite),
+        )
+        .route(
+            "/connections/{id}/favorites/{fid}",
+            axum::routing::patch(update_favorite).delete(delete_favorite),
         )
         .route("/connections/{id}/session", delete(close_session))
 }
@@ -190,6 +198,56 @@ async fn clear_history(
 ) -> AppResult<Json<Value>> {
     let n = history::clear(&state.pool, &id).await?;
     Ok(Json(json!({ "cleared": n })))
+}
+
+async fn list_favorites(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> AppResult<Json<Vec<favorites::Favorite>>> {
+    Ok(Json(favorites::list(&state.pool, &id).await?))
+}
+
+#[derive(Deserialize)]
+struct CreateFavoriteBody {
+    name: String,
+    sql: String,
+}
+
+async fn create_favorite(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(body): Json<CreateFavoriteBody>,
+) -> AppResult<Json<favorites::Favorite>> {
+    Ok(Json(
+        favorites::create(&state.pool, &id, &body.name, &body.sql).await?,
+    ))
+}
+
+#[derive(Deserialize)]
+struct UpdateFavoriteBody {
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    sql: Option<String>,
+}
+
+async fn update_favorite(
+    State(state): State<AppState>,
+    Path((_id, fid)): Path<(String, String)>,
+    Json(body): Json<UpdateFavoriteBody>,
+) -> AppResult<Json<favorites::Favorite>> {
+    favorites::update(&state.pool, &fid, body.name.as_deref(), body.sql.as_deref())
+        .await?
+        .ok_or_else(|| AppError::not_found("favorite not found"))
+        .map(Json)
+}
+
+async fn delete_favorite(
+    State(state): State<AppState>,
+    Path((_id, fid)): Path<(String, String)>,
+) -> AppResult<Json<Value>> {
+    let deleted = favorites::delete(&state.pool, &fid).await?;
+    Ok(Json(json!({ "deleted": deleted })))
 }
 
 async fn close_session(

@@ -2,23 +2,36 @@ import { api, type Connection } from '$lib/api';
 
 export type View = 'browse' | 'query';
 
+export type QueryTab = {
+	id: string;
+	sql: string;
+};
+
 export type Tab = {
 	id: string;
 	connectionId: string;
 	label: string;
 	color: string | null;
-	// per-tab UI state, persisted with the tab so refresh restores it
 	db: string | null;
 	table: string | null;
 	view: View;
-	sql: string;
+	queryTabs: QueryTab[];
+	activeQueryTabId: string | null;
 };
 
 const STORAGE_KEY = 'dbnyan.tabs.v1';
 
-type Persisted = { tabs: Tab[]; activeId: string | null };
+type Persisted = {
+	tabs: (Tab & { sql?: string })[];
+	activeId: string | null;
+};
+
+function newQueryTab(sql = ''): QueryTab {
+	return { id: crypto.randomUUID(), sql };
+}
 
 function emptyTab(c: Connection): Tab {
+	const q = newQueryTab();
 	return {
 		id: crypto.randomUUID(),
 		connectionId: c.id,
@@ -27,7 +40,8 @@ function emptyTab(c: Connection): Tab {
 		db: c.database ?? null,
 		table: null,
 		view: 'browse',
-		sql: ''
+		queryTabs: [q],
+		activeQueryTabId: q.id
 	};
 }
 
@@ -36,7 +50,6 @@ class TabsStore {
 	activeId = $state<string | null>(null);
 	private loaded = false;
 
-	/** Load persisted state from localStorage. Safe to call multiple times. */
 	load() {
 		if (this.loaded || typeof localStorage === 'undefined') return;
 		this.loaded = true;
@@ -44,16 +57,29 @@ class TabsStore {
 			const raw = localStorage.getItem(STORAGE_KEY);
 			if (!raw) return;
 			const parsed: Persisted = JSON.parse(raw);
-			this.tabs = (parsed.tabs ?? []).map((t) => ({
-				id: t.id,
-				connectionId: t.connectionId,
-				label: t.label,
-				color: t.color ?? null,
-				db: t.db ?? null,
-				table: t.table ?? null,
-				view: t.view ?? 'browse',
-				sql: t.sql ?? ''
-			}));
+			this.tabs = (parsed.tabs ?? []).map((t) => {
+				let queryTabs = t.queryTabs;
+				let activeQueryTabId = t.activeQueryTabId;
+				if (!queryTabs || queryTabs.length === 0) {
+					// migrate old single-sql tabs
+					const q = newQueryTab(t.sql ?? '');
+					queryTabs = [q];
+					activeQueryTabId = q.id;
+				} else if (!activeQueryTabId) {
+					activeQueryTabId = queryTabs[0].id;
+				}
+				return {
+					id: t.id,
+					connectionId: t.connectionId,
+					label: t.label,
+					color: t.color ?? null,
+					db: t.db ?? null,
+					table: t.table ?? null,
+					view: t.view ?? 'browse',
+					queryTabs,
+					activeQueryTabId
+				};
+			});
 			this.activeId = parsed.activeId ?? this.tabs[0]?.id ?? null;
 		} catch {
 			/* ignore */
@@ -62,7 +88,7 @@ class TabsStore {
 
 	private save() {
 		if (typeof localStorage === 'undefined') return;
-		const data: Persisted = { tabs: this.tabs, activeId: this.activeId };
+		const data = { tabs: this.tabs, activeId: this.activeId };
 		try {
 			localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 		} catch {
@@ -105,10 +131,9 @@ class TabsStore {
 		this.save();
 	}
 
-	/** Mutate per-tab UI state by tab id. */
 	update(
 		tabId: string,
-		patch: Partial<Pick<Tab, 'db' | 'table' | 'view' | 'sql' | 'label' | 'color'>>
+		patch: Partial<Pick<Tab, 'db' | 'table' | 'view' | 'label' | 'color'>>
 	) {
 		const t = this.tabs.find((x) => x.id === tabId);
 		if (!t) return;
@@ -116,7 +141,48 @@ class TabsStore {
 		this.save();
 	}
 
-	/** Drop tabs whose backing connection no longer exists; refresh labels + color. */
+	// --- query subtabs ---
+
+	addQueryTab(tabId: string, sql = '') {
+		const t = this.tabs.find((x) => x.id === tabId);
+		if (!t) return;
+		const q = newQueryTab(sql);
+		t.queryTabs.push(q);
+		t.activeQueryTabId = q.id;
+		this.save();
+	}
+
+	closeQueryTab(tabId: string, qid: string) {
+		const t = this.tabs.find((x) => x.id === tabId);
+		if (!t) return;
+		if (t.queryTabs.length <= 1) return;
+		const idx = t.queryTabs.findIndex((q) => q.id === qid);
+		if (idx === -1) return;
+		t.queryTabs.splice(idx, 1);
+		if (t.activeQueryTabId === qid) {
+			t.activeQueryTabId = t.queryTabs[idx]?.id ?? t.queryTabs[idx - 1]?.id ?? null;
+		}
+		this.save();
+	}
+
+	activateQueryTab(tabId: string, qid: string) {
+		const t = this.tabs.find((x) => x.id === tabId);
+		if (!t) return;
+		t.activeQueryTabId = qid;
+		this.save();
+	}
+
+	updateQuerySql(tabId: string, qid: string, sql: string) {
+		const t = this.tabs.find((x) => x.id === tabId);
+		if (!t) return;
+		const q = t.queryTabs.find((x) => x.id === qid);
+		if (!q) return;
+		q.sql = sql;
+		this.save();
+	}
+
+	// --- sync helpers ---
+
 	syncWithConnections(saved: Connection[]) {
 		const byId = new Map(saved.map((c) => [c.id, c]));
 		this.tabs = this.tabs.filter((t) => {

@@ -21,7 +21,6 @@
 	const selectedDb = $derived(tab?.db ?? null);
 	const selectedTable = $derived(tab?.table ?? null);
 	const view = $derived(tab?.view ?? 'browse');
-	const sql = $derived(tab?.sql ?? '');
 
 	let conn = $state<Connection | null>(null);
 	let connErr = $state<string | null>(null);
@@ -154,6 +153,8 @@
 
 	let editing = $state(false);
 	let editError = $state<string | null>(null);
+
+	let browseTab = $state<'data' | 'schema'>('data');
 
 	$effect(() => {
 		if (!editing) return;
@@ -356,7 +357,7 @@
 
 		{#if view === 'query'}
 			<div class="flex-1 overflow-hidden">
-				<QueryView {tabId} {connectionId} database={selectedDb} {sql} />
+				<QueryView {tabId} {connectionId} database={selectedDb} />
 			</div>
 		{:else if !selectedTable}
 			<div class="flex h-full items-center justify-center">

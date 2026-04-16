@@ -2,6 +2,7 @@
 
 pub mod aws_ssm;
 pub mod connection;
+pub mod favorites;
 pub mod history;
 pub mod mysql;
 pub mod query;

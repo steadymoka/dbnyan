@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { api, type HistoryEntry, type QueryResult } from '$lib/api';
-	import { tabs } from '$lib/stores/tabs.svelte';
+	import { api, type Favorite, type HistoryEntry, type QueryResult } from '$lib/api';
+	import { tabs as tabsStore, type QueryTab } from '$lib/stores/tabs.svelte';
 	import RowGrid from './RowGrid.svelte';
 	import SqlEditor from './SqlEditor.svelte';
 	import SqlGenerator from './SqlGenerator.svelte';
@@ -9,32 +9,45 @@
 		tabId: string;
 		connectionId: string;
 		database: string | null;
-		sql: string;
 	};
-	let { tabId, connectionId, database, sql }: Props = $props();
+	let { tabId, connectionId, database }: Props = $props();
 
-	let result = $state<QueryResult | null>(null);
-	let error = $state<string | null>(null);
-	let running = $state(false);
+	const tab = $derived(tabsStore.tabs.find((t) => t.id === tabId));
+	const queryTabs = $derived(tab?.queryTabs ?? []);
+	const activeQueryId = $derived(tab?.activeQueryTabId ?? null);
+	const activeQuery = $derived(queryTabs.find((q) => q.id === activeQueryId) ?? null);
+	const sql = $derived(activeQuery?.sql ?? '');
+
+	// Per-query volatile state
+	let resultsById = $state<Record<string, QueryResult | null>>({});
+	let errorsById = $state<Record<string, string | null>>({});
+	let runningById = $state<Record<string, boolean>>({});
+
+	const result = $derived(activeQueryId ? (resultsById[activeQueryId] ?? null) : null);
+	const error = $derived(activeQueryId ? (errorsById[activeQueryId] ?? null) : null);
+	const running = $derived(activeQueryId ? (runningById[activeQueryId] ?? false) : false);
 
 	let history = $state<HistoryEntry[]>([]);
+	let favorites = $state<Favorite[]>([]);
 
 	function msg(e: unknown): string {
 		return e instanceof Error ? e.message : String(e);
 	}
 
 	async function run() {
-		const trimmed = sql.trim();
-		if (!trimmed || running) return;
-		running = true;
-		error = null;
-		result = null;
+		const qid = activeQueryId;
+		if (!qid || !activeQuery) return;
+		const trimmed = activeQuery.sql.trim();
+		if (!trimmed || runningById[qid]) return;
+		runningById[qid] = true;
+		errorsById[qid] = null;
+		resultsById[qid] = null;
 		try {
-			result = await api.queries.run(connectionId, trimmed, database ?? undefined);
+			resultsById[qid] = await api.queries.run(connectionId, trimmed, database ?? undefined);
 		} catch (e) {
-			error = msg(e);
+			errorsById[qid] = msg(e);
 		} finally {
-			running = false;
+			runningById[qid] = false;
 			loadHistory();
 		}
 	}
@@ -47,8 +60,57 @@
 		}
 	}
 
+	async function loadFavorites() {
+		try {
+			favorites = await api.favorites.list(connectionId);
+		} catch {
+			/* ignore */
+		}
+	}
+
+	async function addFavorite() {
+		if (!activeQuery || !activeQuery.sql.trim()) return;
+		const defaultName = `query ${favorites.length + 1}`;
+		const name = prompt('Favorite name', defaultName)?.trim();
+		if (!name) return;
+		try {
+			await api.favorites.create(connectionId, { name, sql: activeQuery.sql });
+			await loadFavorites();
+		} catch (e) {
+			alert(`Failed to save favorite: ${msg(e)}`);
+		}
+	}
+
+	async function renameFavorite(f: Favorite, e: Event) {
+		e.stopPropagation();
+		const name = prompt('New name', f.name)?.trim();
+		if (!name || name === f.name) return;
+		try {
+			await api.favorites.update(connectionId, f.id, { name });
+			await loadFavorites();
+		} catch (err) {
+			alert(`Rename failed: ${msg(err)}`);
+		}
+	}
+
+	async function deleteFavorite(f: Favorite, e: Event) {
+		e.stopPropagation();
+		if (!confirm(`Delete favorite "${f.name}"?`)) return;
+		try {
+			await api.favorites.delete(connectionId, f.id);
+			favorites = favorites.filter((x) => x.id !== f.id);
+		} catch (err) {
+			alert(`Delete failed: ${msg(err)}`);
+		}
+	}
+
+	function loadFavorite(f: Favorite) {
+		setSql(f.sql);
+	}
+
 	function setSql(value: string) {
-		tabs.update(tabId, { sql: value });
+		if (!activeQueryId) return;
+		tabsStore.updateQuerySql(tabId, activeQueryId, value);
 	}
 
 	function loadFromHistory(h: HistoryEntry) {
@@ -65,9 +127,39 @@
 		}
 	}
 
+	function addQuery() {
+		tabsStore.addQueryTab(tabId);
+	}
+
+	function closeQuery(qid: string, e: Event) {
+		e.stopPropagation();
+		delete resultsById[qid];
+		delete errorsById[qid];
+		delete runningById[qid];
+		tabsStore.closeQueryTab(tabId, qid);
+	}
+
+	function activateQuery(qid: string) {
+		tabsStore.activateQueryTab(tabId, qid);
+	}
+
+	function queryLabel(q: QueryTab, idx: number): string {
+		const trimmed = q.sql.trim();
+		if (!trimmed) return `Query ${idx + 1}`;
+		// Pick the first non-comment line
+		for (const raw of trimmed.split(/\r?\n/)) {
+			const line = raw.trim();
+			if (!line) continue;
+			if (line.startsWith('--') || line.startsWith('#')) continue;
+			return line.length > 28 ? line.slice(0, 28) + '…' : line;
+		}
+		return `Query ${idx + 1}`;
+	}
+
 	$effect(() => {
 		connectionId;
 		loadHistory();
+		loadFavorites();
 	});
 </script>
 
@@ -75,50 +167,102 @@
 	<div class="flex flex-1 flex-col overflow-hidden">
 		<SqlGenerator {connectionId} {database} onUseSql={setSql} />
 
-		<div class="flex items-center gap-3 border-b border-rule bg-cream-soft/40 px-4 py-2">
-			<button
-				class="cursor-pointer rounded-md bg-ink px-4 py-1.5 font-mono text-[11px] tracking-[0.18em] text-cream uppercase transition-colors hover:bg-rust disabled:cursor-not-allowed disabled:opacity-40"
-				onclick={run}
-				disabled={running || !sql.trim()}
-			>
-				{running ? '…' : 'run'}
-			</button>
-			<span class="font-mono text-[10px] tracking-widest text-ink-faint uppercase">
-				⌘⏎
-			</span>
-			{#if result}
-				<span
-					class="ml-auto font-mono text-[10px] tracking-widest text-ink-faint uppercase"
+		<!-- subtab strip + run -->
+		<div
+			class="flex items-end gap-2 border-b border-rule bg-cream-soft/40 pl-2 pr-3 pt-1.5"
+		>
+			<div class="flex flex-1 items-end gap-px overflow-x-auto overflow-y-hidden">
+				{#each queryTabs as q, i (q.id)}
+					{@const active = q.id === activeQueryId}
+					<div
+						class="group/q relative flex shrink-0 items-stretch rounded-t-sm border border-b-0 transition-colors {active
+							? '-mb-px border-rule bg-cream'
+							: 'border-transparent hover:bg-cream/60'}"
+					>
+						{#if active}
+							<span
+								class="absolute top-0 right-1.5 left-1.5 h-[2px] rounded-b-sm bg-rust"
+								aria-hidden="true"
+							></span>
+						{/if}
+						<button
+							class="cursor-pointer py-1 pr-1 pl-2.5 font-mono text-[11.5px] {active
+								? 'font-medium text-ink'
+								: 'text-ink-muted hover:text-ink'}"
+							onclick={() => activateQuery(q.id)}
+						>
+							<span class="block max-w-[180px] truncate" title={q.sql || `Query ${i + 1}`}>
+								{queryLabel(q, i)}
+							</span>
+						</button>
+						{#if queryTabs.length > 1}
+							<button
+								class="my-auto mr-1 grid h-4 w-4 cursor-pointer place-items-center rounded text-ink-faint transition-all hover:bg-crimson-soft hover:text-crimson {active
+									? 'opacity-100'
+									: 'opacity-0 group-hover/q:opacity-100'}"
+								onclick={(e) => closeQuery(q.id, e)}
+								aria-label="close query"
+							>
+								<span class="text-[11px] leading-none">×</span>
+							</button>
+						{/if}
+					</div>
+				{/each}
+				<button
+					class="mb-0.5 ml-1 grid h-6 w-6 cursor-pointer place-items-center rounded text-ink-faint transition-colors hover:bg-cream-deep hover:text-rust"
+					onclick={addQuery}
+					title="new query (compare side by side)"
+					aria-label="new query"
 				>
-					{#if result.kind === 'rows'}
-						{result.returned} row{result.returned === 1 ? '' : 's'}
-					{:else}
-						{result.rows_affected} affected{result.last_insert_id
-							? ` · last id ${result.last_insert_id}`
-							: ''}
-					{/if}
-					· {result.duration_ms}ms
+					<span class="text-[14px] leading-none">+</span>
+				</button>
+			</div>
+
+			<div class="mb-1 flex items-center gap-3">
+				<button
+					class="cursor-pointer rounded-md bg-ink px-3.5 py-1.5 font-mono text-[10.5px] tracking-[0.18em] text-cream uppercase transition-colors hover:bg-rust disabled:cursor-not-allowed disabled:opacity-40"
+					onclick={run}
+					disabled={running || !sql.trim()}
+				>
+					{running ? '…' : 'run'}
+				</button>
+				<span class="font-mono text-[10px] tracking-widest text-ink-faint uppercase">
+					⌘⏎
 				</span>
-			{/if}
+				{#if result}
+					<span
+						class="font-mono text-[10px] tracking-widest text-ink-faint uppercase whitespace-nowrap"
+					>
+						{#if result.kind === 'rows'}
+							{result.returned} row{result.returned === 1 ? '' : 's'}
+						{:else}
+							{result.rows_affected} affected
+						{/if}
+						· {result.duration_ms}ms
+					</span>
+				{/if}
+			</div>
 		</div>
 
+		<!-- editor (active query) -->
 		<div class="h-44 shrink-0 border-b border-rule">
-			<SqlEditor value={sql} onChange={setSql} onSubmit={run} />
+			{#key activeQueryId}
+				<SqlEditor value={sql} onChange={setSql} onSubmit={run} />
+			{/key}
 		</div>
 
+		<!-- result (active query) -->
 		<div class="flex-1 overflow-auto bg-cream">
 			{#if error}
 				<pre
 					class="m-3 rounded bg-crimson-soft p-3 font-mono text-[12px] whitespace-pre-wrap text-crimson">{error}</pre>
 			{:else if result}
 				{#if result.kind === 'rows'}
-					<RowGrid
-						columns={result.columns}
-						rows={result.rows}
-						empty="(query returned no rows)"
-					/>
+					<RowGrid columns={result.columns} rows={result.rows} empty="(query returned no rows)" />
 				{:else}
-					<div class="m-3 rounded border border-moss/30 bg-moss-soft p-3 font-mono text-[12px] text-moss">
+					<div
+						class="m-3 rounded border border-moss/30 bg-moss-soft p-3 font-mono text-[12px] text-moss"
+					>
 						{result.rows_affected} row{result.rows_affected === 1 ? '' : 's'} affected
 						{#if result.last_insert_id !== 0}
 							· last_insert_id = {result.last_insert_id}
@@ -134,6 +278,67 @@
 	</div>
 
 	<aside class="flex w-[280px] shrink-0 flex-col border-l border-rule bg-cream-soft">
+		<!-- favorites -->
+		<section class="flex max-h-[40%] flex-col overflow-hidden border-b border-rule">
+			<header class="flex items-center justify-between border-b border-rule px-4 py-3">
+				<span class="font-mono text-[10px] tracking-[0.22em] text-ink-faint uppercase">
+					Favorites
+				</span>
+				<button
+					class="cursor-pointer text-[14px] leading-none text-ink-faint hover:text-rust disabled:opacity-30"
+					title={activeQuery && activeQuery.sql.trim()
+						? 'save current query as favorite'
+						: 'write a query first'}
+					onclick={addFavorite}
+					disabled={!activeQuery?.sql.trim()}
+					aria-label="add favorite"
+				>
+					+
+				</button>
+			</header>
+			<div class="flex-1 overflow-auto">
+				{#if favorites.length === 0}
+					<div class="px-4 py-3 font-mono text-[11px] text-ink-faint italic">
+						(none yet — write a query and click +)
+					</div>
+				{:else}
+					{#each favorites as f (f.id)}
+						<div class="group/fav relative border-b border-rule/60 hover:bg-cream">
+							<button
+								class="block w-full cursor-pointer px-4 py-2 pr-14 text-left"
+								onclick={() => loadFavorite(f)}
+								title="click to load into editor"
+							>
+								<div class="flex items-center gap-1.5 text-[12px] text-ink">
+									<span class="text-rust">★</span>
+									<span class="truncate font-medium">{f.name}</span>
+								</div>
+								<div class="mt-0.5 truncate font-mono text-[11px] text-ink-faint">{f.sql}</div>
+							</button>
+							<div class="absolute top-2 right-2 flex items-center gap-1 opacity-0 transition-opacity group-hover/fav:opacity-100">
+								<button
+									class="cursor-pointer rounded px-1 text-[10px] text-ink-faint hover:bg-cream-deep hover:text-ink"
+									onclick={(e) => renameFavorite(f, e)}
+									title="rename"
+								>
+									rename
+								</button>
+								<button
+									class="cursor-pointer rounded px-1 text-[14px] leading-none text-ink-faint hover:bg-crimson-soft hover:text-crimson"
+									onclick={(e) => deleteFavorite(f, e)}
+									title="delete"
+									aria-label="delete favorite"
+								>
+									×
+								</button>
+							</div>
+						</div>
+					{/each}
+				{/if}
+			</div>
+		</section>
+
+		<!-- history -->
 		<header class="flex items-center justify-between border-b border-rule px-4 py-3">
 			<span class="font-mono text-[10px] tracking-[0.22em] text-ink-faint uppercase">
 				History
@@ -165,7 +370,9 @@
 							onclick={() => loadFromHistory(h)}
 							title="click to load into editor"
 						>
-							<div class="flex items-center gap-2 font-mono text-[10px] tracking-widest text-ink-faint uppercase">
+							<div
+								class="flex items-center gap-2 font-mono text-[10px] tracking-widest text-ink-faint uppercase"
+							>
 								<span class={h.success ? 'text-moss' : 'text-crimson'}>
 									{h.success ? '✓' : '✗'}
 								</span>
