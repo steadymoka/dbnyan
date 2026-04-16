@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { api, type Favorite, type HistoryEntry, type QueryResult } from '$lib/api';
-	import { tabs as tabsStore, type QueryTab } from '$lib/stores/tabs.svelte';
+	import { tabs as tabsStore } from '$lib/stores/tabs.svelte';
 	import RowGrid from './RowGrid.svelte';
 	import SqlEditor from './SqlEditor.svelte';
 	import SqlGenerator from './SqlGenerator.svelte';
@@ -127,34 +127,17 @@
 		}
 	}
 
-	function addQuery() {
-		tabsStore.addQueryTab(tabId);
-	}
-
-	function closeQuery(qid: string, e: Event) {
-		e.stopPropagation();
-		delete resultsById[qid];
-		delete errorsById[qid];
-		delete runningById[qid];
-		tabsStore.closeQueryTab(tabId, qid);
-	}
-
-	function activateQuery(qid: string) {
-		tabsStore.activateQueryTab(tabId, qid);
-	}
-
-	function queryLabel(q: QueryTab, idx: number): string {
-		const trimmed = q.sql.trim();
-		if (!trimmed) return `Query ${idx + 1}`;
-		// Pick the first non-comment line
-		for (const raw of trimmed.split(/\r?\n/)) {
-			const line = raw.trim();
-			if (!line) continue;
-			if (line.startsWith('--') || line.startsWith('#')) continue;
-			return line.length > 28 ? line.slice(0, 28) + '…' : line;
+	// Cleanup volatile state for closed query subtabs
+	$effect(() => {
+		const ids = new Set(queryTabs.map((q) => q.id));
+		for (const k of Object.keys(resultsById)) {
+			if (!ids.has(k)) {
+				delete resultsById[k];
+				delete errorsById[k];
+				delete runningById[k];
+			}
 		}
-		return `Query ${idx + 1}`;
-	}
+	});
 
 	$effect(() => {
 		connectionId;
@@ -167,81 +150,27 @@
 	<div class="flex flex-1 flex-col overflow-hidden">
 		<SqlGenerator {connectionId} {database} onUseSql={setSql} />
 
-		<!-- subtab strip + run -->
-		<div
-			class="flex items-end gap-2 border-b border-rule bg-cream-soft/40 pl-2 pr-3 pt-1.5"
-		>
-			<div class="flex flex-1 items-end gap-px overflow-x-auto overflow-y-hidden">
-				{#each queryTabs as q, i (q.id)}
-					{@const active = q.id === activeQueryId}
-					<div
-						class="group/q relative flex shrink-0 items-stretch rounded-t-sm border border-b-0 transition-colors {active
-							? '-mb-px border-rule bg-cream'
-							: 'border-transparent hover:bg-cream/60'}"
-					>
-						{#if active}
-							<span
-								class="absolute top-0 right-1.5 left-1.5 h-[2px] rounded-b-sm bg-rust"
-								aria-hidden="true"
-							></span>
-						{/if}
-						<button
-							class="cursor-pointer py-1 pr-1 pl-2.5 font-mono text-[11.5px] {active
-								? 'font-medium text-ink'
-								: 'text-ink-muted hover:text-ink'}"
-							onclick={() => activateQuery(q.id)}
-						>
-							<span class="block max-w-[180px] truncate" title={q.sql || `Query ${i + 1}`}>
-								{queryLabel(q, i)}
-							</span>
-						</button>
-						{#if queryTabs.length > 1}
-							<button
-								class="my-auto mr-1 grid h-4 w-4 cursor-pointer place-items-center rounded text-ink-faint transition-all hover:bg-crimson-soft hover:text-crimson {active
-									? 'opacity-100'
-									: 'opacity-0 group-hover/q:opacity-100'}"
-								onclick={(e) => closeQuery(q.id, e)}
-								aria-label="close query"
-							>
-								<span class="text-[11px] leading-none">×</span>
-							</button>
-						{/if}
-					</div>
-				{/each}
-				<button
-					class="mb-0.5 ml-1 grid h-6 w-6 cursor-pointer place-items-center rounded text-ink-faint transition-colors hover:bg-cream-deep hover:text-rust"
-					onclick={addQuery}
-					title="new query (compare side by side)"
-					aria-label="new query"
+		<div class="flex items-center gap-3 border-b border-rule bg-cream-soft/40 px-3 py-2">
+			<button
+				class="cursor-pointer rounded-md bg-ink px-3.5 py-1.5 font-mono text-[10.5px] tracking-[0.18em] text-cream uppercase transition-colors hover:bg-rust disabled:cursor-not-allowed disabled:opacity-40"
+				onclick={run}
+				disabled={running || !sql.trim()}
+			>
+				{running ? '…' : 'run'}
+			</button>
+			<span class="font-mono text-[10px] tracking-widest text-ink-faint uppercase">⌘⏎</span>
+			{#if result}
+				<span
+					class="ml-auto font-mono text-[10px] tracking-widest text-ink-faint uppercase whitespace-nowrap"
 				>
-					<span class="text-[14px] leading-none">+</span>
-				</button>
-			</div>
-
-			<div class="mb-1 flex items-center gap-3">
-				<button
-					class="cursor-pointer rounded-md bg-ink px-3.5 py-1.5 font-mono text-[10.5px] tracking-[0.18em] text-cream uppercase transition-colors hover:bg-rust disabled:cursor-not-allowed disabled:opacity-40"
-					onclick={run}
-					disabled={running || !sql.trim()}
-				>
-					{running ? '…' : 'run'}
-				</button>
-				<span class="font-mono text-[10px] tracking-widest text-ink-faint uppercase">
-					⌘⏎
+					{#if result.kind === 'rows'}
+						{result.returned} row{result.returned === 1 ? '' : 's'}
+					{:else}
+						{result.rows_affected} affected
+					{/if}
+					· {result.duration_ms}ms
 				</span>
-				{#if result}
-					<span
-						class="font-mono text-[10px] tracking-widest text-ink-faint uppercase whitespace-nowrap"
-					>
-						{#if result.kind === 'rows'}
-							{result.returned} row{result.returned === 1 ? '' : 's'}
-						{:else}
-							{result.rows_affected} affected
-						{/if}
-						· {result.duration_ms}ms
-					</span>
-				{/if}
-			</div>
+			{/if}
 		</div>
 
 		<!-- editor (active query) -->
