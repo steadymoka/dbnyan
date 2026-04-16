@@ -1,13 +1,33 @@
+# --- build outputs ---
 /target
 **/node_modules/
 web/.svelte-kit/
 web/build/
+
+# --- app state / local dev ---
 data/
+.data/
 .sqlx/
-.DS_Store
 *.db
 *.db-journal
 *.db-shm
 *.db-wal
+
+# --- env / secrets ---
 .env
-.env.local
+.env.*
+!.env.example
+
+# --- logs ---
+*.log
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- IDE / editor (root only; web/.vscode is intentionally tracked) ---
+/.idea/
+/.vscode/
+*.swp
+*.swo
+.#*
