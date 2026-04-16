@@ -103,7 +103,7 @@
 			<span class="text-rust">.</span>
 		</a>
 
-		<div class="flex flex-1 items-end overflow-x-auto">
+		<div class="flex flex-1 items-end overflow-x-auto overflow-y-hidden">
 			{#each tabs.tabs as t (t.id)}
 				{@const swatch = colorHex(t.color)}
 				<div
