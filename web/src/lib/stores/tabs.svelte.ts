@@ -131,6 +131,22 @@ class TabsStore {
 		this.save();
 	}
 
+	/** Move `srcId` to be inserted before/after `dstId` in the tab order. */
+	reorder(srcId: string, dstId: string, before: boolean) {
+		if (srcId === dstId) return;
+		const srcIdx = this.tabs.findIndex((t) => t.id === srcId);
+		if (srcIdx === -1) return;
+		const [moved] = this.tabs.splice(srcIdx, 1);
+		const dstIdx = this.tabs.findIndex((t) => t.id === dstId);
+		if (dstIdx === -1) {
+			// dst gone for some reason — put src back where it was
+			this.tabs.splice(srcIdx, 0, moved);
+			return;
+		}
+		this.tabs.splice(before ? dstIdx : dstIdx + 1, 0, moved);
+		this.save();
+	}
+
 	update(
 		tabId: string,
 		patch: Partial<Pick<Tab, 'db' | 'table' | 'view' | 'label' | 'color'>>

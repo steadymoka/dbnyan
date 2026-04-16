@@ -11,6 +11,52 @@
 	let modalOpen = $state(false);
 	let initialized = $state(false);
 
+	let dragTabId = $state<string | null>(null);
+	let dropHint = $state<{ tabId: string; before: boolean } | null>(null);
+
+	function onTabDragStart(e: DragEvent, tabId: string) {
+		if (!e.dataTransfer) return;
+		e.dataTransfer.effectAllowed = 'move';
+		e.dataTransfer.setData('application/x-dbnyan-tab', tabId);
+		dragTabId = tabId;
+	}
+
+	function onTabDragEnd() {
+		dragTabId = null;
+		dropHint = null;
+	}
+
+	function onTabDragOver(e: DragEvent, tabId: string) {
+		// Only reorder when dragging another tab — ignore other drag types
+		if (!dragTabId) return;
+		e.preventDefault();
+		if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+		if (dragTabId === tabId) {
+			dropHint = null;
+			return;
+		}
+		const el = e.currentTarget as HTMLElement;
+		const rect = el.getBoundingClientRect();
+		const before = e.clientX < rect.left + rect.width / 2;
+		dropHint = { tabId, before };
+	}
+
+	function onTabDragLeave(tabId: string) {
+		if (dropHint?.tabId === tabId) dropHint = null;
+	}
+
+	function onTabDrop(e: DragEvent, tabId: string) {
+		if (!dragTabId) return;
+		e.preventDefault();
+		const src = dragTabId;
+		const el = e.currentTarget as HTMLElement;
+		const rect = el.getBoundingClientRect();
+		const before = e.clientX < rect.left + rect.width / 2;
+		dragTabId = null;
+		dropHint = null;
+		if (src && src !== tabId) tabs.reorder(src, tabId, before);
+	}
+
 	onMount(() => {
 		tabs.load();
 		applyUrlToState().finally(() => {
