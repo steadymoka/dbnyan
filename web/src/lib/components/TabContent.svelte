@@ -144,6 +144,36 @@
 		tabs.update(tabId, { view: v });
 	}
 
+	const queryTabs = $derived(tab?.queryTabs ?? []);
+	const activeQueryId = $derived(tab?.activeQueryTabId ?? null);
+
+	function queryLabel(q: { sql: string }, idx: number): string {
+		const trimmed = q.sql.trim();
+		if (!trimmed) return `Query ${idx + 1}`;
+		for (const raw of trimmed.split(/\r?\n/)) {
+			const line = raw.trim();
+			if (!line) continue;
+			if (line.startsWith('--') || line.startsWith('#')) continue;
+			return line.length > 22 ? line.slice(0, 22) + '…' : line;
+		}
+		return `Query ${idx + 1}`;
+	}
+
+	function activateQuery(qid: string) {
+		if (view !== 'query') tabs.update(tabId, { view: 'query' });
+		tabs.activateQueryTab(tabId, qid);
+	}
+
+	function addQuery() {
+		if (view !== 'query') tabs.update(tabId, { view: 'query' });
+		tabs.addQueryTab(tabId);
+	}
+
+	function closeQuerySub(qid: string, e: Event) {
+		e.stopPropagation();
+		tabs.closeQueryTab(tabId, qid);
+	}
+
 	function msg(e: unknown): string {
 		return e instanceof Error ? e.message : String(e);
 	}
@@ -393,6 +423,50 @@
 			>
 				Query
 			</button>
+
+			{#if view === 'query'}
+				<div class="mx-2 h-4 w-px bg-rule" aria-hidden="true"></div>
+				<div class="flex flex-1 items-center gap-px overflow-x-auto overflow-y-hidden">
+					{#each queryTabs as q, i (q.id)}
+						{@const active = q.id === activeQueryId}
+						<div
+							class="group/q relative flex shrink-0 items-stretch rounded transition-colors {active
+								? 'bg-cream-deep'
+								: 'hover:bg-cream-soft'}"
+						>
+							<button
+								class="cursor-pointer py-1 pr-1 pl-2.5 font-mono text-[11px] {active
+									? 'font-medium text-ink'
+									: 'text-ink-faint hover:text-ink'}"
+								onclick={() => activateQuery(q.id)}
+							>
+								<span class="block max-w-[160px] truncate" title={q.sql || `Query ${i + 1}`}>
+									{queryLabel(q, i)}
+								</span>
+							</button>
+							{#if queryTabs.length > 1}
+								<button
+									class="my-auto mr-1 grid h-4 w-4 cursor-pointer place-items-center rounded text-ink-faint transition-all hover:bg-crimson-soft hover:text-crimson {active
+										? 'opacity-100'
+										: 'opacity-0 group-hover/q:opacity-100'}"
+									onclick={(e) => closeQuerySub(q.id, e)}
+									aria-label="close query"
+								>
+									<span class="text-[11px] leading-none">×</span>
+								</button>
+							{/if}
+						</div>
+					{/each}
+					<button
+						class="ml-1 grid h-6 w-6 cursor-pointer place-items-center rounded text-ink-faint transition-colors hover:bg-cream-deep hover:text-rust"
+						onclick={addQuery}
+						title="new query (compare side by side)"
+						aria-label="new query"
+					>
+						<span class="text-[14px] leading-none">+</span>
+					</button>
+				</div>
+			{/if}
 		</nav>
 
 		{#if view === 'query'}
