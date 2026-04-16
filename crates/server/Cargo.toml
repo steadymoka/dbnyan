@@ -1,0 +1,17 @@
+[package]
+name = "dbnyan-server"
+version = "0.1.0"
+edition.workspace = true
+
+[dependencies]
+dbnyan-core = { path = "../core" }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+axum = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+sqlx = { workspace = true }

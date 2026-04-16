@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Development mode: Rust server (port 3939) + SvelteKit dev server (port 5173).
+# Visit http://localhost:5173 — Vite proxies /api/* to the Rust backend.
+set -e
+cd "$(dirname "$0")/.."
+
+if [ ! -d web/node_modules ]; then
+	echo "→ installing web deps…"
+	(cd web && bun install)
+fi
+
+echo "→ starting Rust server (background)…"
+cargo run -p dbnyan-server &
+SERVER_PID=$!
+
+cleanup() {
+	echo
+	echo "→ stopping…"
+	kill "$SERVER_PID" 2>/dev/null || true
+	wait "$SERVER_PID" 2>/dev/null || true
+	exit
+}
+trap cleanup INT TERM
+
+echo "→ starting SvelteKit dev (foreground)…"
+cd web
+exec bun run dev --open

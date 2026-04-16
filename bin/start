@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Production-style: build the web bundle and serve it from the Rust backend
+# on a single port (default 3939). Override with `DBNYAN_PORT=8080 ./bin/start`.
+set -e
+cd "$(dirname "$0")/.."
+
+if [ ! -d web/node_modules ]; then
+	echo "→ installing web deps…"
+	(cd web && bun install)
+fi
+
+echo "→ building web…"
+(cd web && bun run build)
+
+PORT="${DBNYAN_PORT:-3939}"
+echo "→ starting dbnyan @ http://127.0.0.1:${PORT}"
+exec env DBNYAN_PORT="$PORT" cargo run -p dbnyan-server --release
