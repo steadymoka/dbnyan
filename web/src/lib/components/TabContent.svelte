@@ -106,7 +106,7 @@
 		try {
 			const [s, r] = await Promise.all([
 				api.databases.schema(id, db, table),
-				api.databases.rows(id, db, table, 200)
+				api.databases.rows(id, db, table, { limit: 200 })
 			]);
 			if (id !== connectionId || table !== selectedTable) return;
 			schema = s;

@@ -312,9 +312,8 @@
 						{@render folderNode(tree)}
 
 						<!-- (no folder) bucket — always visible at the bottom for ungroup drops -->
-						{@const noFolderActive = dropPath === null}
 						<div
-							class="rounded border-l-2 transition-colors {noFolderActive
+							class="rounded border-l-2 transition-colors {dropPath === null
 								? 'border-rust bg-rust-soft/30'
 								: 'border-rule/40'}"
 							ondragover={(e) => onDragOver(e, null)}
