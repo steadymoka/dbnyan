@@ -14,6 +14,7 @@ export type SsmConfig = {
 	target: string;
 	region?: string;
 	profile?: string;
+	local_port?: number;
 };
 
 export type Connection = {

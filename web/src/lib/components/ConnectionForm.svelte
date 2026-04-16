@@ -40,6 +40,7 @@
 	let ssmTarget = $state(seed.aws_ssm?.target ?? '');
 	let ssmRegion = $state(seed.aws_ssm?.region ?? '');
 	let ssmProfile = $state(seed.aws_ssm?.profile ?? '');
+	let ssmLocalPortStr = $state(seed.aws_ssm?.local_port?.toString() ?? '');
 
 	let submitting = $state(false);
 	let error = $state<string | null>(null);
@@ -78,7 +79,10 @@
 						? {
 								target: ssmTarget,
 								region: ssmRegion || undefined,
-								profile: ssmProfile || undefined
+								profile: ssmProfile || undefined,
+								local_port: ssmLocalPortStr.trim()
+									? Number(ssmLocalPortStr.trim())
+									: undefined
 							}
 						: undefined
 			};
@@ -312,6 +316,17 @@
 					<input
 						bind:value={ssmProfile}
 						placeholder="default"
+						class="block w-full border-b border-rule bg-transparent py-1 font-mono text-[12.5px] text-ink placeholder:text-ink-ghost focus:border-rust focus:outline-none"
+					/>
+				</label>
+				<label class="col-span-2 space-y-1">
+					<span class="block text-[11px] text-ink-muted">Local port <span class="text-ink-faint">— optional; fixed if set, random otherwise. Use to share with other tools.</span></span>
+					<input
+						type="number"
+						bind:value={ssmLocalPortStr}
+						placeholder="random"
+						min="1"
+						max="65535"
 						class="block w-full border-b border-rule bg-transparent py-1 font-mono text-[12.5px] text-ink placeholder:text-ink-ghost focus:border-rust focus:outline-none"
 					/>
 				</label>

@@ -12,6 +12,7 @@
 use crate::tunnel::{drain_stderr, find_free_port, wait_for_first_byte, wait_for_port, Tunnel};
 use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
+use std::net::{Ipv4Addr, SocketAddr, TcpListener};
 use std::process::Stdio;
 use std::time::Duration;
 use tokio::process::Command;
@@ -26,10 +27,29 @@ pub struct SsmConfig {
     /// Optional named AWS profile (otherwise the default profile is used).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub profile: Option<String>,
+    /// Optional fixed local port. When set, the tunnel binds to this port so
+    /// other tools (e.g. MySQL Workbench, mysql CLI) can share the same SSM
+    /// session. When unset, a random free port is chosen each open.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub local_port: Option<u16>,
 }
 
 pub async fn open(ssm: &SsmConfig, target_host: &str, target_port: u16) -> Result<Tunnel> {
-    let local_port = find_free_port().context("find free local port for tunnel")?;
+    let local_port = match ssm.local_port {
+        Some(p) => {
+            // Friendlier than waiting for `aws ssm` to fail and parsing its stderr.
+            // (Mild race: another process could grab `p` between this check and
+            // session-manager-plugin's bind, but for the normal case this gives
+            // an immediate, readable error.)
+            if TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, p))).is_err() {
+                return Err(anyhow!(
+                    "local port {p} is already in use — pick another, or leave the field empty for an auto-assigned port"
+                ));
+            }
+            p
+        }
+        None => find_free_port().context("find free local port for tunnel")?,
+    };
 
     let mut cmd = Command::new("aws");
     cmd.arg("ssm")
