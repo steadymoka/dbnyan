@@ -13,6 +13,7 @@ use std::net::{Ipv4Addr, SocketAddr, TcpListener};
 use std::process::Stdio;
 use std::time::Duration;
 use tokio::io::AsyncReadExt;
+use tokio::net::TcpStream;
 use tokio::process::{Child, Command};
 use tokio::time::{sleep, timeout, Instant};
 
@@ -99,7 +100,7 @@ pub(crate) fn find_free_port() -> Result<u16> {
 pub(crate) async fn wait_for_port(port: u16, total: Duration) -> Result<()> {
     let start = Instant::now();
     loop {
-        if tokio::net::TcpStream::connect(("127.0.0.1", port)).await.is_ok() {
+        if TcpStream::connect(("127.0.0.1", port)).await.is_ok() {
             return Ok(());
         }
         if start.elapsed() >= total {
@@ -107,6 +108,28 @@ pub(crate) async fn wait_for_port(port: u16, total: Duration) -> Result<()> {
         }
         sleep(Duration::from_millis(100)).await;
     }
+}
+
+/// Stronger readiness check: actually open a TCP connection to `port` and wait
+/// for the remote to send at least one byte (MySQL greets first). Useful for
+/// SSM where the local listener can be up before the SSM ↔ RDS pipe is fully
+/// stitched — connecting too early hangs sqlx.
+pub(crate) async fn wait_for_first_byte(port: u16, total: Duration) -> Result<()> {
+    let start = Instant::now();
+    while start.elapsed() < total {
+        if let Ok(mut stream) = TcpStream::connect(("127.0.0.1", port)).await {
+            let mut buf = [0u8; 1];
+            match timeout(Duration::from_millis(2500), stream.read(&mut buf)).await {
+                Ok(Ok(n)) if n > 0 => return Ok(()),
+                _ => {} // listener accepted but no greeting yet — close & retry
+            }
+        }
+        sleep(Duration::from_millis(500)).await;
+    }
+    Err(anyhow!(
+        "tunnel port {port} did not deliver any data within {total:?} \
+         (forwarder accepts but the remote isn't talking yet)"
+    ))
 }
 
 pub(crate) async fn drain_stderr(child: &mut Child) -> String {

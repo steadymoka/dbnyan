@@ -88,7 +88,7 @@ async fn open(conn: &Connection) -> Result<Session> {
 
     let pool = MySqlPoolOptions::new()
         .max_connections(5)
-        .acquire_timeout(Duration::from_secs(15))
+        .acquire_timeout(Duration::from_secs(30))
         .connect_with(opts)
         .await
         .context("connect to mysql")?;

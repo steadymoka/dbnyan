@@ -9,7 +9,7 @@
 //! - `aws` CLI v2 (logged in / configured)
 //! - `session-manager-plugin` (installed separately)
 
-use crate::tunnel::{drain_stderr, find_free_port, wait_for_port, Tunnel};
+use crate::tunnel::{drain_stderr, find_free_port, wait_for_first_byte, wait_for_port, Tunnel};
 use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::process::Stdio;
@@ -57,17 +57,25 @@ pub async fn open(ssm: &SsmConfig, target_host: &str, target_port: u16) -> Resul
         .spawn()
         .context("spawn `aws ssm start-session` (is the AWS CLI installed?)")?;
 
-    // SSM session takes a few seconds; allow longer than SSH.
+    // 1. Local listener up?
     if let Err(e) = wait_for_port(local_port, Duration::from_secs(20)).await {
         let stderr = drain_stderr(&mut child).await;
         let _ = child.start_kill();
         return Err(anyhow!(
             "AWS SSM tunnel failed: {e}{}",
-            if stderr.is_empty() {
-                String::new()
-            } else {
-                format!("\n{}", stderr.trim())
-            }
+            if stderr.is_empty() { String::new() } else { format!("\n{}", stderr.trim()) }
+        ));
+    }
+
+    // 2. Actually delivering bytes? Without this the MySQL pool will time
+    //    out on its first connect because the SSM session-manager-plugin
+    //    accepts TCP locally well before the AWS↔RDS pipe is fully ready.
+    if let Err(e) = wait_for_first_byte(local_port, Duration::from_secs(20)).await {
+        let stderr = drain_stderr(&mut child).await;
+        let _ = child.start_kill();
+        return Err(anyhow!(
+            "AWS SSM tunnel handshake failed: {e}{}",
+            if stderr.is_empty() { String::new() } else { format!("\n{}", stderr.trim()) }
         ));
     }
 
