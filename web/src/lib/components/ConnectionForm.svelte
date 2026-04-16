@@ -22,7 +22,10 @@
 	let folder = $state(seed.folder ?? '');
 	let color = $state<string | null>(seed.color ?? null);
 
-	let sshEnabled = $state(!!seed.ssh);
+	type Method = 'direct' | 'ssh' | 'ssm';
+	let method = $state<Method>(seed.ssh ? 'ssh' : seed.aws_ssm ? 'ssm' : 'direct');
+
+	// SSH state
 	let sshHost = $state(seed.ssh?.host ?? '');
 	let sshPort = $state<number>(seed.ssh?.port ?? 22);
 	let sshUser = $state(seed.ssh?.user ?? '');
@@ -33,10 +36,15 @@
 		seed.ssh?.auth.method === 'key' ? (seed.ssh.auth.passphrase ?? '') : ''
 	);
 
+	// SSM state
+	let ssmTarget = $state(seed.aws_ssm?.target ?? '');
+	let ssmRegion = $state(seed.aws_ssm?.region ?? '');
+	let ssmProfile = $state(seed.aws_ssm?.profile ?? '');
+
 	let submitting = $state(false);
 	let error = $state<string | null>(null);
 
-	function buildAuth(): SshAuth {
+	function buildSshAuth(): SshAuth {
 		if (sshMethod === 'password') return { method: 'password', password: sshPassword };
 		if (sshMethod === 'key')
 			return {
@@ -61,9 +69,18 @@
 				database: database || undefined,
 				folder: folder || undefined,
 				color: color ?? undefined,
-				ssh: sshEnabled
-					? { host: sshHost, port: sshPort, user: sshUser, auth: buildAuth() }
-					: undefined
+				ssh:
+					method === 'ssh'
+						? { host: sshHost, port: sshPort, user: sshUser, auth: buildSshAuth() }
+						: undefined,
+				aws_ssm:
+					method === 'ssm'
+						? {
+								target: ssmTarget,
+								region: ssmRegion || undefined,
+								profile: ssmProfile || undefined
+							}
+						: undefined
 			};
 			await onSubmit(input);
 		} catch (e) {
@@ -96,7 +113,7 @@
 				bind:value={name}
 				required
 				placeholder="prod api"
-				class="block w-full border-b border-rule bg-transparent py-1 font-sans text-[14px] text-ink placeholder:text-ink-ghost focus:border-rust focus:outline-none"
+				class="block w-full border-b border-rule bg-transparent py-1 text-[14px] text-ink placeholder:text-ink-ghost focus:border-rust focus:outline-none"
 			/>
 		</label>
 		<label class="col-span-2 space-y-1">
@@ -106,35 +123,6 @@
 				class="block w-full border-b border-rule bg-transparent py-1 font-mono text-[12.5px] text-ink focus:border-rust focus:outline-none"
 			/>
 		</label>
-		<div class="col-span-2 space-y-1.5">
-			<span class="block text-[11px] text-ink-muted">Color <span class="text-ink-faint">— optional</span></span>
-			<div class="flex flex-wrap items-center gap-2 pt-1">
-				<button
-					type="button"
-					class="grid h-6 w-6 place-items-center rounded-full border border-rule bg-cream transition-transform hover:scale-110 {color ===
-					null
-						? 'ring-2 ring-ink ring-offset-2 ring-offset-cream'
-						: ''}"
-					title="no color"
-					onclick={() => (color = null)}
-				>
-					<span class="block h-2 w-2 rounded-full bg-ink-ghost"></span>
-				</button>
-				{#each COLOR_LIST as [n, hex] (n)}
-					<button
-						type="button"
-						class="h-6 w-6 cursor-pointer rounded-full transition-transform hover:scale-110 {color ===
-						n
-							? 'ring-2 ring-ink ring-offset-2 ring-offset-cream'
-							: ''}"
-						style="background: {hex}"
-						title={n}
-						onclick={() => (color = n)}
-						aria-label={n}
-					></button>
-				{/each}
-			</div>
-		</div>
 		<label class="col-span-1 space-y-1">
 			<span class="block text-[11px] text-ink-muted">Host</span>
 			<input
@@ -177,24 +165,67 @@
 				class="block w-full border-b border-rule bg-transparent py-1 font-mono text-[12.5px] text-ink focus:border-rust focus:outline-none"
 			/>
 		</label>
+		<div class="col-span-2 space-y-1.5">
+			<span class="block text-[11px] text-ink-muted">Color <span class="text-ink-faint">— optional</span></span>
+			<div class="flex flex-wrap items-center gap-2 pt-1">
+				<button
+					type="button"
+					class="grid h-6 w-6 cursor-pointer place-items-center rounded-full border border-rule bg-cream transition-transform hover:scale-110 {color ===
+					null
+						? 'ring-2 ring-ink ring-offset-2 ring-offset-cream'
+						: ''}"
+					title="no color"
+					onclick={() => (color = null)}
+				>
+					<span class="block h-2 w-2 rounded-full bg-ink-ghost"></span>
+				</button>
+				{#each COLOR_LIST as [n, hex] (n)}
+					<button
+						type="button"
+						class="h-6 w-6 cursor-pointer rounded-full transition-transform hover:scale-110 {color ===
+						n
+							? 'ring-2 ring-ink ring-offset-2 ring-offset-cream'
+							: ''}"
+						style="background: {hex}"
+						title={n}
+						onclick={() => (color = n)}
+						aria-label={n}
+					></button>
+				{/each}
+			</div>
+		</div>
 	</div>
 
 	<p class="text-[11px] text-mustard">
 		⚠ Passwords are stored in plaintext SQLite for now (Keychain later).
 	</p>
 
-	<div class="border-t border-rule pt-4">
-		<label class="flex cursor-pointer items-center gap-2">
-			<input type="checkbox" bind:checked={sshEnabled} class="accent-rust" />
-			<span class="text-[12.5px] text-ink">Use SSH tunnel</span>
-		</label>
-		{#if sshEnabled}
-			<div class="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 rounded-md bg-cream-soft/50 p-4">
+	<div class="space-y-3 border-t border-rule pt-4">
+		<div>
+			<span class="block text-[11px] text-ink-muted">Connection method</span>
+			<div class="mt-1.5 flex gap-1.5">
+				{#each [{ id: 'direct', label: 'Direct' }, { id: 'ssh', label: 'SSH tunnel' }, { id: 'ssm', label: 'AWS SSM' }] as opt (opt.id)}
+					<button
+						type="button"
+						class="cursor-pointer rounded-md border px-3 py-1 text-[12px] transition-colors {method ===
+						opt.id
+							? 'border-rust bg-rust-soft/40 text-rust'
+							: 'border-rule text-ink-muted hover:border-ink-faint hover:text-ink'}"
+						onclick={() => (method = opt.id as Method)}
+					>
+						{opt.label}
+					</button>
+				{/each}
+			</div>
+		</div>
+
+		{#if method === 'ssh'}
+			<div class="grid grid-cols-2 gap-x-4 gap-y-3 rounded-md bg-cream-soft/50 p-4">
 				<label class="col-span-2 space-y-1">
 					<span class="block text-[11px] text-ink-muted">SSH host</span>
 					<input
 						bind:value={sshHost}
-						required={sshEnabled}
+						required
 						class="block w-full border-b border-rule bg-transparent py-1 font-mono text-[12.5px] text-ink focus:border-rust focus:outline-none"
 					/>
 				</label>
@@ -212,7 +243,7 @@
 					<span class="block text-[11px] text-ink-muted">User</span>
 					<input
 						bind:value={sshUser}
-						required={sshEnabled}
+						required
 						class="block w-full border-b border-rule bg-transparent py-1 font-mono text-[12.5px] text-ink focus:border-rust focus:outline-none"
 					/>
 				</label>
@@ -256,6 +287,38 @@
 						/>
 					</label>
 				{/if}
+			</div>
+		{:else if method === 'ssm'}
+			<div class="grid grid-cols-2 gap-x-4 gap-y-3 rounded-md bg-cream-soft/50 p-4">
+				<label class="col-span-2 space-y-1">
+					<span class="block text-[11px] text-ink-muted">EC2 instance id <span class="text-ink-faint">— SSM target</span></span>
+					<input
+						bind:value={ssmTarget}
+						required
+						placeholder="i-00e64f3807d1c2061"
+						class="block w-full border-b border-rule bg-transparent py-1 font-mono text-[12.5px] text-ink placeholder:text-ink-ghost focus:border-rust focus:outline-none"
+					/>
+				</label>
+				<label class="col-span-1 space-y-1">
+					<span class="block text-[11px] text-ink-muted">Region <span class="text-ink-faint">— optional</span></span>
+					<input
+						bind:value={ssmRegion}
+						placeholder="ap-northeast-2"
+						class="block w-full border-b border-rule bg-transparent py-1 font-mono text-[12.5px] text-ink placeholder:text-ink-ghost focus:border-rust focus:outline-none"
+					/>
+				</label>
+				<label class="col-span-1 space-y-1">
+					<span class="block text-[11px] text-ink-muted">Profile <span class="text-ink-faint">— optional</span></span>
+					<input
+						bind:value={ssmProfile}
+						placeholder="default"
+						class="block w-full border-b border-rule bg-transparent py-1 font-mono text-[12.5px] text-ink placeholder:text-ink-ghost focus:border-rust focus:outline-none"
+					/>
+				</label>
+				<p class="col-span-2 text-[11px] text-ink-faint">
+					Host/Port above describe the forward destination (e.g. RDS endpoint :3306).
+					Requires <span class="font-mono">aws</span> CLI + <span class="font-mono">session-manager-plugin</span> on this machine.
+				</p>
 			</div>
 		{/if}
 	</div>

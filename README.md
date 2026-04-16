@@ -10,7 +10,7 @@ Built as a calmer, more opinionated alternative to TablePlus / SequelAce — eve
 
 ## Features
 
-- **Connections** — folders, labels, optional **SSH tunnel** (key / agent auth), drag-to-reorganize, one-click clone
+- **Connections** — nested folders (`prod/api/staging`), color labels, optional tunnel (**SSH** key/agent or **AWS SSM** port-forwarding), drag-to-reorganize, one-click clone
 - **Tabs** — browser-style; state persists in `localStorage` and the URL (`?cid=…&db=…&t=…&v=q`) so refreshes and shared links land on the same view
 - **Browse** — collapsed database picker, table list, schema view, 200-row preview
 - **Query** — SQL editor with **CodeMirror 6** syntax highlighting (`⌘⏎` to run), per-connection history with timing & success status
@@ -70,6 +70,7 @@ make portless PORTLESS_NAME=admin.dbnyan     # → https://admin.dbnyan.localhos
 - [Bun](https://bun.sh/) — used for the SvelteKit build / dev server
 - A **MySQL** instance to point at
 - For the AI generator: [Claude Code](https://claude.com/claude-code) installed and `claude login`’d. The server spawns `claude -p` and removes `ANTHROPIC_API_KEY` from the child env so subscription auth is used.
+- For AWS SSM port-forward connections: `aws` CLI v2 (configured via `aws configure`) and the [Session Manager Plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html) on this machine.
 
 ---
 

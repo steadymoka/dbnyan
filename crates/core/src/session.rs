@@ -4,6 +4,7 @@
 //! shuts down when the session is dropped. The `SessionManager` keeps a
 //! shared registry; the first request for a connection lazily opens it.
 
+use crate::aws_ssm;
 use crate::connection::Connection;
 use crate::tunnel::{self, Tunnel};
 use anyhow::{Context, Result};
@@ -66,6 +67,9 @@ impl SessionManager {
 async fn open(conn: &Connection) -> Result<Session> {
     let (host, port, tunnel) = if let Some(ssh) = &conn.ssh {
         let t = tunnel::open(ssh, &conn.host, conn.port).await?;
+        ("127.0.0.1".to_string(), t.local_port, Some(t))
+    } else if let Some(ssm) = &conn.aws_ssm {
+        let t = aws_ssm::open(ssm, &conn.host, conn.port).await?;
         ("127.0.0.1".to_string(), t.local_port, Some(t))
     } else {
         (conn.host.clone(), conn.port, None)

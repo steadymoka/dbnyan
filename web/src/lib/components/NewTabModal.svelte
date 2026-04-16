@@ -93,7 +93,8 @@
 			database: c.database,
 			folder: c.folder,
 			color: c.color,
-			ssh: c.ssh
+			ssh: c.ssh,
+			aws_ssm: c.aws_ssm
 		};
 	}
 
@@ -270,6 +271,8 @@
 														: ''}
 													{#if c.ssh}
 														<span class="text-mustard">· ssh→{c.ssh.host}</span>
+													{:else if c.aws_ssm}
+														<span class="text-mustard">· ssm→{c.aws_ssm.target}</span>
 													{/if}
 												</div>
 											</button>

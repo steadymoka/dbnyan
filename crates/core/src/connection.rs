@@ -1,3 +1,4 @@
+use crate::aws_ssm::SsmConfig;
 use crate::ssh::SshConfig;
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
@@ -23,6 +24,8 @@ pub struct Connection {
     pub color: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ssh: Option<SshConfig>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aws_ssm: Option<SsmConfig>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -44,6 +47,8 @@ pub struct ConnectionInput {
     pub color: Option<String>,
     #[serde(default)]
     pub ssh: Option<SshConfig>,
+    #[serde(default)]
+    pub aws_ssm: Option<SsmConfig>,
 }
 
 fn default_mysql_port() -> u16 {
@@ -63,6 +68,7 @@ struct Row {
     folder: Option<String>,
     color: Option<String>,
     ssh_json: Option<String>,
+    aws_ssm_json: Option<String>,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
 }
@@ -71,6 +77,10 @@ impl Row {
     fn into_connection(self) -> Result<Connection> {
         let ssh = match self.ssh_json {
             Some(s) => Some(serde_json::from_str(&s).context("parse ssh_json")?),
+            None => None,
+        };
+        let aws_ssm = match self.aws_ssm_json {
+            Some(s) => Some(serde_json::from_str(&s).context("parse aws_ssm_json")?),
             None => None,
         };
         Ok(Connection {
@@ -85,6 +95,7 @@ impl Row {
             folder: self.folder,
             color: self.color,
             ssh,
+            aws_ssm,
             created_at: self.created_at,
             updated_at: self.updated_at,
         })
@@ -92,7 +103,7 @@ impl Row {
 }
 
 const SELECT_COLUMNS: &str = "id, name, driver, host, port, username, password,
-    database_name, folder, color, ssh_json, created_at, updated_at";
+    database_name, folder, color, ssh_json, aws_ssm_json, created_at, updated_at";
 
 pub async fn list(pool: &SqlitePool) -> Result<Vec<Connection>> {
     let sql = format!(
@@ -118,12 +129,18 @@ pub async fn create(pool: &SqlitePool, input: ConnectionInput) -> Result<Connect
         .map(serde_json::to_string)
         .transpose()
         .context("serialize ssh")?;
+    let ssm_json = input
+        .aws_ssm
+        .as_ref()
+        .map(serde_json::to_string)
+        .transpose()
+        .context("serialize aws_ssm")?;
 
     sqlx::query(
         "INSERT INTO connections \
          (id, name, driver, host, port, username, password, \
-          database_name, folder, color, ssh_json, created_at, updated_at) \
-         VALUES (?, ?, 'mysql', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          database_name, folder, color, ssh_json, aws_ssm_json, created_at, updated_at) \
+         VALUES (?, ?, 'mysql', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&input.name)
@@ -135,6 +152,7 @@ pub async fn create(pool: &SqlitePool, input: ConnectionInput) -> Result<Connect
     .bind(&input.folder)
     .bind(&input.color)
     .bind(&ssh_json)
+    .bind(&ssm_json)
     .bind(now)
     .bind(now)
     .execute(pool)
@@ -152,6 +170,7 @@ pub async fn create(pool: &SqlitePool, input: ConnectionInput) -> Result<Connect
         folder: input.folder,
         color: input.color,
         ssh: input.ssh,
+        aws_ssm: input.aws_ssm,
         created_at: now,
         updated_at: now,
     })
@@ -169,11 +188,18 @@ pub async fn update(
         .map(serde_json::to_string)
         .transpose()
         .context("serialize ssh")?;
+    let ssm_json = input
+        .aws_ssm
+        .as_ref()
+        .map(serde_json::to_string)
+        .transpose()
+        .context("serialize aws_ssm")?;
 
     let res = sqlx::query(
         "UPDATE connections SET \
          name = ?, host = ?, port = ?, username = ?, password = ?, \
-         database_name = ?, folder = ?, color = ?, ssh_json = ?, updated_at = ? \
+         database_name = ?, folder = ?, color = ?, ssh_json = ?, aws_ssm_json = ?, \
+         updated_at = ? \
          WHERE id = ?",
     )
     .bind(&input.name)
@@ -185,6 +211,7 @@ pub async fn update(
     .bind(&input.folder)
     .bind(&input.color)
     .bind(&ssh_json)
+    .bind(&ssm_json)
     .bind(now)
     .bind(id)
     .execute(pool)

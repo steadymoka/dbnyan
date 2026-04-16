@@ -1,5 +1,6 @@
 //! dbnyan core: app-state storage and DB driver primitives.
 
+pub mod aws_ssm;
 pub mod connection;
 pub mod history;
 pub mod mysql;

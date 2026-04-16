@@ -1,4 +1,4 @@
-//! SSH tunnel via the system `ssh` binary.
+//! Local-port-forwarding tunnel via the system `ssh` binary.
 //!
 //! For each connection that has SSH config we spawn `ssh -N -L`, which
 //! forwards a random local port to the target DB host (from the bastion's
@@ -21,9 +21,15 @@ pub struct Tunnel {
     child: Child,
 }
 
+impl Tunnel {
+    pub(crate) fn new(local_port: u16, child: Child) -> Self {
+        Self { local_port, child }
+    }
+}
+
 impl Drop for Tunnel {
     fn drop(&mut self) {
-        // Best-effort: signal the ssh subprocess. start_kill is non-blocking.
+        // Best-effort: signal the subprocess. start_kill is non-blocking.
         let _ = self.child.start_kill();
     }
 }
@@ -80,17 +86,17 @@ pub async fn open(ssh: &SshConfig, target_host: &str, target_port: u16) -> Resul
         ));
     }
 
-    Ok(Tunnel { local_port, child })
+    Ok(Tunnel::new(local_port, child))
 }
 
-fn find_free_port() -> Result<u16> {
+pub(crate) fn find_free_port() -> Result<u16> {
     let listener = TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0)))?;
     let port = listener.local_addr()?.port();
     drop(listener);
     Ok(port)
 }
 
-async fn wait_for_port(port: u16, total: Duration) -> Result<()> {
+pub(crate) async fn wait_for_port(port: u16, total: Duration) -> Result<()> {
     let start = Instant::now();
     loop {
         if tokio::net::TcpStream::connect(("127.0.0.1", port)).await.is_ok() {
@@ -103,7 +109,7 @@ async fn wait_for_port(port: u16, total: Duration) -> Result<()> {
     }
 }
 
-async fn drain_stderr(child: &mut Child) -> String {
+pub(crate) async fn drain_stderr(child: &mut Child) -> String {
     let Some(mut stderr) = child.stderr.take() else {
         return String::new();
     };

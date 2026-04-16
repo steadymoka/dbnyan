@@ -10,6 +10,12 @@ export type SshConfig = {
 	auth: SshAuth;
 };
 
+export type SsmConfig = {
+	target: string;
+	region?: string;
+	profile?: string;
+};
+
 export type Connection = {
 	id: string;
 	name: string;
@@ -22,6 +28,7 @@ export type Connection = {
 	folder?: string;
 	color?: string;
 	ssh?: SshConfig;
+	aws_ssm?: SsmConfig;
 	created_at: string;
 	updated_at: string;
 };
@@ -36,6 +43,7 @@ export type ConnectionInput = {
 	folder?: string;
 	color?: string;
 	ssh?: SshConfig;
+	aws_ssm?: SsmConfig;
 };
 
 export type TableInfo = { name: string; kind: string };
