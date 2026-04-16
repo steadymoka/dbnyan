@@ -40,7 +40,7 @@
 	let ssmTarget = $state(seed.aws_ssm?.target ?? '');
 	let ssmRegion = $state(seed.aws_ssm?.region ?? '');
 	let ssmProfile = $state(seed.aws_ssm?.profile ?? '');
-	let ssmLocalPortStr = $state(seed.aws_ssm?.local_port?.toString() ?? '');
+	let ssmLocalPort = $state<number | null>(seed.aws_ssm?.local_port ?? null);
 
 	let submitting = $state(false);
 	let error = $state<string | null>(null);
@@ -80,9 +80,8 @@
 								target: ssmTarget,
 								region: ssmRegion || undefined,
 								profile: ssmProfile || undefined,
-								local_port: ssmLocalPortStr.trim()
-									? Number(ssmLocalPortStr.trim())
-									: undefined
+								local_port:
+									ssmLocalPort && ssmLocalPort > 0 ? ssmLocalPort : undefined
 							}
 						: undefined
 			};
@@ -323,7 +322,7 @@
 					<span class="block text-[11px] text-ink-muted">Local port <span class="text-ink-faint">— optional; fixed if set, random otherwise. Use to share with other tools.</span></span>
 					<input
 						type="number"
-						bind:value={ssmLocalPortStr}
+						bind:value={ssmLocalPort}
 						placeholder="random"
 						min="1"
 						max="65535"
