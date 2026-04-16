@@ -16,10 +16,42 @@
 		onSort
 	}: Props = $props();
 
+	let expanded = $state<{ col: string; value: unknown } | null>(null);
+
 	function fmtCell(v: unknown): string {
 		if (v === null || v === undefined) return 'NULL';
 		if (typeof v === 'object') return JSON.stringify(v);
 		return String(v);
+	}
+
+	function fmtFull(v: unknown): string {
+		if (v === null || v === undefined) return 'NULL';
+		if (typeof v === 'object') return JSON.stringify(v, null, 2);
+		return String(v);
+	}
+
+	function openCell(col: string, value: unknown) {
+		// If the user is selecting text to copy, don't pop the modal.
+		if (window.getSelection()?.toString()) return;
+		expanded = { col, value };
+	}
+
+	$effect(() => {
+		if (!expanded) return;
+		const onKey = (e: KeyboardEvent) => {
+			if (e.key === 'Escape') expanded = null;
+		};
+		window.addEventListener('keydown', onKey);
+		return () => window.removeEventListener('keydown', onKey);
+	});
+
+	async function copyValue() {
+		if (!expanded) return;
+		try {
+			await navigator.clipboard.writeText(fmtFull(expanded.value));
+		} catch {
+			/* ignore */
+		}
 	}
 </script>
 
@@ -61,10 +93,11 @@
 						{#each row as cell, j (j)}
 							{@const text = fmtCell(cell)}
 							<td
-								class="max-w-xs truncate px-3 py-1.5 align-top {cell === null
+								class="max-w-xs cursor-pointer truncate px-3 py-1.5 align-top {cell === null
 									? 'text-ink-faint italic'
 									: 'text-ink'}"
 								title={text}
+								onclick={() => openCell(columns[j], cell)}
 							>
 								{text}
 							</td>
@@ -73,5 +106,60 @@
 				{/each}
 			</tbody>
 		</table>
+	</div>
+{/if}
+
+{#if expanded}
+	<div
+		class="fixed inset-0 z-50 flex items-start justify-center bg-ink/30 p-12 backdrop-blur-sm"
+		onclick={() => (expanded = null)}
+		role="presentation"
+	>
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<div
+			class="flex max-h-[80vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-rule bg-cream shadow-[0_24px_64px_-24px_rgba(26,24,20,0.35)]"
+			onclick={(e) => e.stopPropagation()}
+			role="dialog"
+			aria-modal="true"
+			tabindex="-1"
+		>
+			<header class="flex items-center justify-between border-b border-rule px-5 py-3">
+				<div class="flex items-baseline gap-2">
+					<span class="font-mono text-[10px] tracking-[0.22em] text-ink-faint uppercase">
+						column
+					</span>
+					<span class="font-mono text-[13px] font-medium text-ink">{expanded.col}</span>
+					{#if expanded.value === null || expanded.value === undefined}
+						<span class="font-mono text-[10px] tracking-widest text-ink-faint uppercase italic">
+							null
+						</span>
+					{:else if typeof expanded.value === 'string'}
+						<span class="font-mono text-[10px] tracking-widest text-ink-faint uppercase">
+							{expanded.value.length} chars
+						</span>
+					{/if}
+				</div>
+				<div class="flex items-center gap-3 text-[11px]">
+					<button
+						class="cursor-pointer text-ink-muted transition-colors hover:text-ink"
+						onclick={copyValue}
+					>
+						copy
+					</button>
+					<button
+						class="cursor-pointer text-xl leading-none text-ink-faint transition-colors hover:text-rust"
+						onclick={() => (expanded = null)}
+						aria-label="close"
+					>
+						×
+					</button>
+				</div>
+			</header>
+			<pre
+				class="flex-1 overflow-auto px-5 py-4 font-mono text-[12.5px] leading-relaxed whitespace-pre-wrap break-words {expanded.value ===
+					null || expanded.value === undefined
+					? 'text-ink-faint italic'
+					: 'text-ink'}">{fmtFull(expanded.value)}</pre>
+		</div>
 	</div>
 {/if}
