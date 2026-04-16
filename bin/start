@@ -12,6 +12,7 @@ fi
 echo "→ building web…"
 (cd web && bun run build)
 
-PORT="${DBNYAN_PORT:-3939}"
-echo "→ starting dbnyan @ http://127.0.0.1:${PORT}"
-exec env DBNYAN_PORT="$PORT" cargo run -p dbnyan-server --release
+# Honor caller's env in priority: DBNYAN_PORT > PORT (e.g. set by portless) > 3939
+EFFECTIVE_PORT="${DBNYAN_PORT:-${PORT:-3939}}"
+echo "→ starting dbnyan @ http://127.0.0.1:${EFFECTIVE_PORT}"
+exec env DBNYAN_PORT="$EFFECTIVE_PORT" cargo run -p dbnyan-server --release
