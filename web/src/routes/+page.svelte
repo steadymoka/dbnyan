@@ -4,6 +4,7 @@
 	import { replaceState } from '$app/navigation';
 	import { tabs, type Tab } from '$lib/stores/tabs.svelte';
 	import { api } from '$lib/api';
+	import { colorHex } from '$lib/colors';
 	import NewTabModal from '$lib/components/NewTabModal.svelte';
 	import TabContent from '$lib/components/TabContent.svelte';
 
@@ -104,6 +105,7 @@
 
 		<div class="flex flex-1 items-end overflow-x-auto">
 			{#each tabs.tabs as t (t.id)}
+				{@const swatch = colorHex(t.color)}
 				<div
 					class="group/tab relative flex shrink-0 items-stretch rounded-t-[6px] border border-b-0 transition-colors {t.id ===
 					tabs.activeId
@@ -111,12 +113,20 @@
 						: 'border-transparent bg-transparent hover:bg-cream/60'}"
 				>
 					<button
-						class="cursor-pointer px-3 py-2 text-[13px] {t.id === tabs.activeId
+						class="flex cursor-pointer items-center gap-2 px-3 py-2 text-[13px] {t.id ===
+						tabs.activeId
 							? 'font-medium text-ink'
 							: 'text-ink-muted hover:text-ink'}"
 						onclick={() => tabs.activate(t.id)}
 					>
-						{t.label}
+						{#if swatch}
+							<span
+								class="block h-2 w-2 shrink-0 rounded-full"
+								style="background: {swatch}"
+								aria-hidden="true"
+							></span>
+						{/if}
+						<span>{t.label}</span>
 					</button>
 					<button
 						class="mr-2 my-auto rounded-full px-1 text-[14px] leading-none text-ink-faint transition-colors hover:bg-crimson-soft hover:text-crimson {t.id ===

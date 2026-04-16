@@ -20,6 +20,7 @@ export type Connection = {
 	password?: string;
 	database?: string;
 	folder?: string;
+	color?: string;
 	ssh?: SshConfig;
 	created_at: string;
 	updated_at: string;
@@ -33,6 +34,7 @@ export type ConnectionInput = {
 	password?: string;
 	database?: string;
 	folder?: string;
+	color?: string;
 	ssh?: SshConfig;
 };
 

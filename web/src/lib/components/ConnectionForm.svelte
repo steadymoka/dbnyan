@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import type { Connection, ConnectionInput, SshAuth } from '$lib/api';
+	import { COLOR_LIST } from '$lib/colors';
 
 	type Props = {
 		initial?: Partial<Connection>;
@@ -19,6 +20,7 @@
 	let password = $state(seed.password ?? '');
 	let database = $state(seed.database ?? '');
 	let folder = $state(seed.folder ?? '');
+	let color = $state<string | null>(seed.color ?? null);
 
 	let sshEnabled = $state(!!seed.ssh);
 	let sshHost = $state(seed.ssh?.host ?? '');
@@ -58,6 +60,7 @@
 				password: password || undefined,
 				database: database || undefined,
 				folder: folder || undefined,
+				color: color ?? undefined,
 				ssh: sshEnabled
 					? { host: sshHost, port: sshPort, user: sshUser, auth: buildAuth() }
 					: undefined
@@ -97,12 +100,41 @@
 			/>
 		</label>
 		<label class="col-span-2 space-y-1">
-			<span class="block text-[11px] text-ink-muted">Folder <span class="text-ink-faint">— optional, e.g. <span class="font-mono text-[11px]">prod/api</span></span></span>
+			<span class="block text-[11px] text-ink-muted">Folder <span class="text-ink-faint">— optional, e.g. <span class="font-mono text-[11px]">prod/api</span> for nested</span></span>
 			<input
 				bind:value={folder}
 				class="block w-full border-b border-rule bg-transparent py-1 font-mono text-[12.5px] text-ink focus:border-rust focus:outline-none"
 			/>
 		</label>
+		<div class="col-span-2 space-y-1.5">
+			<span class="block text-[11px] text-ink-muted">Color <span class="text-ink-faint">— optional</span></span>
+			<div class="flex flex-wrap items-center gap-2 pt-1">
+				<button
+					type="button"
+					class="grid h-6 w-6 place-items-center rounded-full border border-rule bg-cream transition-transform hover:scale-110 {color ===
+					null
+						? 'ring-2 ring-ink ring-offset-2 ring-offset-cream'
+						: ''}"
+					title="no color"
+					onclick={() => (color = null)}
+				>
+					<span class="block h-2 w-2 rounded-full bg-ink-ghost"></span>
+				</button>
+				{#each COLOR_LIST as [n, hex] (n)}
+					<button
+						type="button"
+						class="h-6 w-6 cursor-pointer rounded-full transition-transform hover:scale-110 {color ===
+						n
+							? 'ring-2 ring-ink ring-offset-2 ring-offset-cream'
+							: ''}"
+						style="background: {hex}"
+						title={n}
+						onclick={() => (color = n)}
+						aria-label={n}
+					></button>
+				{/each}
+			</div>
+		</div>
 		<label class="col-span-1 space-y-1">
 			<span class="block text-[11px] text-ink-muted">Host</span>
 			<input

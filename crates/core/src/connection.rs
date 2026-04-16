@@ -20,6 +20,8 @@ pub struct Connection {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub folder: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ssh: Option<SshConfig>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -39,6 +41,8 @@ pub struct ConnectionInput {
     #[serde(default)]
     pub folder: Option<String>,
     #[serde(default)]
+    pub color: Option<String>,
+    #[serde(default)]
     pub ssh: Option<SshConfig>,
 }
 
@@ -57,6 +61,7 @@ struct Row {
     password: Option<String>,
     database_name: Option<String>,
     folder: Option<String>,
+    color: Option<String>,
     ssh_json: Option<String>,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
@@ -78,6 +83,7 @@ impl Row {
             password: self.password,
             database: self.database_name,
             folder: self.folder,
+            color: self.color,
             ssh,
             created_at: self.created_at,
             updated_at: self.updated_at,
@@ -86,7 +92,7 @@ impl Row {
 }
 
 const SELECT_COLUMNS: &str = "id, name, driver, host, port, username, password,
-    database_name, folder, ssh_json, created_at, updated_at";
+    database_name, folder, color, ssh_json, created_at, updated_at";
 
 pub async fn list(pool: &SqlitePool) -> Result<Vec<Connection>> {
     let sql = format!(
@@ -116,8 +122,8 @@ pub async fn create(pool: &SqlitePool, input: ConnectionInput) -> Result<Connect
     sqlx::query(
         "INSERT INTO connections \
          (id, name, driver, host, port, username, password, \
-          database_name, folder, ssh_json, created_at, updated_at) \
-         VALUES (?, ?, 'mysql', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          database_name, folder, color, ssh_json, created_at, updated_at) \
+         VALUES (?, ?, 'mysql', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&input.name)
@@ -127,6 +133,7 @@ pub async fn create(pool: &SqlitePool, input: ConnectionInput) -> Result<Connect
     .bind(&input.password)
     .bind(&input.database)
     .bind(&input.folder)
+    .bind(&input.color)
     .bind(&ssh_json)
     .bind(now)
     .bind(now)
@@ -143,13 +150,18 @@ pub async fn create(pool: &SqlitePool, input: ConnectionInput) -> Result<Connect
         password: input.password,
         database: input.database,
         folder: input.folder,
+        color: input.color,
         ssh: input.ssh,
         created_at: now,
         updated_at: now,
     })
 }
 
-pub async fn update(pool: &SqlitePool, id: &str, input: ConnectionInput) -> Result<Option<Connection>> {
+pub async fn update(
+    pool: &SqlitePool,
+    id: &str,
+    input: ConnectionInput,
+) -> Result<Option<Connection>> {
     let now = Utc::now();
     let ssh_json = input
         .ssh
@@ -161,7 +173,7 @@ pub async fn update(pool: &SqlitePool, id: &str, input: ConnectionInput) -> Resu
     let res = sqlx::query(
         "UPDATE connections SET \
          name = ?, host = ?, port = ?, username = ?, password = ?, \
-         database_name = ?, folder = ?, ssh_json = ?, updated_at = ? \
+         database_name = ?, folder = ?, color = ?, ssh_json = ?, updated_at = ? \
          WHERE id = ?",
     )
     .bind(&input.name)
@@ -171,6 +183,7 @@ pub async fn update(pool: &SqlitePool, id: &str, input: ConnectionInput) -> Resu
     .bind(&input.password)
     .bind(&input.database)
     .bind(&input.folder)
+    .bind(&input.color)
     .bind(&ssh_json)
     .bind(now)
     .bind(id)

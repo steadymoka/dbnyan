@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { api, type Connection, type ConnectionInput } from '$lib/api';
 	import { tabs } from '$lib/stores/tabs.svelte';
+	import { colorHex } from '$lib/colors';
 	import ConnectionForm from './ConnectionForm.svelte';
 
 	type Props = { onclose: () => void };
@@ -37,7 +38,12 @@
 		return () => window.removeEventListener('keydown', onKey);
 	});
 
-	type Group = { folder: string | null; key: string; items: Connection[] };
+	type Group = {
+		folder: string | null; // full path e.g. "prod/api"; null for no-folder
+		segments: string[]; // ["prod", "api"]
+		depth: number; // 0 for top-level folder, 1 for one level deep, …
+		items: Connection[];
+	};
 
 	const grouped = $derived.by<Group[]>(() => {
 		const m = new Map<string, Connection[]>();
@@ -46,18 +52,28 @@
 			if (!m.has(k)) m.set(k, []);
 			m.get(k)!.push(c);
 		}
-		const groups: Group[] = [...m.entries()].map(([key, items]) => ({
-			folder: key === '' ? null : key,
-			key: key === '' ? '(no folder)' : key,
-			items
-		}));
+		const groups: Group[] = [];
+		for (const [path, items] of m.entries()) {
+			if (path === '') {
+				groups.push({ folder: null, segments: [], depth: 0, items });
+			} else {
+				const segments = path.split('/').filter(Boolean);
+				groups.push({
+					folder: path,
+					segments,
+					depth: Math.max(0, segments.length - 1),
+					items
+				});
+			}
+		}
+		// always keep an empty (no folder) bucket at the bottom
 		if (!groups.find((g) => g.folder === null)) {
-			groups.push({ folder: null, key: '(no folder)', items: [] });
+			groups.push({ folder: null, segments: [], depth: 0, items: [] });
 		}
 		groups.sort((a, b) => {
 			if (a.folder === null) return 1;
 			if (b.folder === null) return -1;
-			return a.key.localeCompare(b.key);
+			return a.folder.localeCompare(b.folder);
 		});
 		return groups;
 	});
@@ -76,6 +92,7 @@
 			password: c.password,
 			database: c.database,
 			folder: c.folder,
+			color: c.color,
 			ssh: c.ssh
 		};
 	}
@@ -178,40 +195,50 @@
 			</button>
 		</div>
 
-		<div class="px-6 py-5">
+		<div class="px-5 py-4">
 			{#if view.kind === 'picker'}
 				{#if loadErr}
 					<pre
 						class="mb-4 rounded bg-crimson-soft p-3 font-mono text-[12px] whitespace-pre-wrap text-crimson">{loadErr}</pre>
 				{/if}
 				{#if saved.length === 0}
-					<p class="mb-4 font-mono text-[11px] tracking-widest text-ink-faint uppercase">
-						no saved connections yet
-					</p>
+					<p class="mb-4 text-[11px] text-ink-faint">no saved connections yet.</p>
 				{:else}
 					<p class="mb-3 text-[11px] text-ink-faint">
-						Drag to reorder folder · hover a row for clone &amp; edit.
+						Drag to reorder folder · use <span class="font-mono">/</span> for nested folders
 					</p>
-					{#each grouped as g (g.key)}
+					{#each grouped as g (g.folder ?? '__root__')}
 						<section
-							class="mb-5 rounded-md border-2 border-dashed transition-colors {dropFolder === g.folder
+							class="mb-3 rounded-md border-2 border-dashed transition-colors {dropFolder ===
+							g.folder
 								? 'border-rust bg-rust-soft/30'
 								: 'border-transparent'}"
+							style="margin-left: {g.depth * 16}px"
 							ondragover={(e) => onDragOver(e, g.folder)}
 							ondragleave={() => onDragLeave(g.folder)}
 							ondrop={(e) => onDrop(e, g.folder)}
 							role="group"
 						>
-							<h3 class="mb-1.5 px-2 font-mono text-[10px] tracking-[0.22em] text-ink-faint uppercase">
-								{g.key}
+							<h3 class="mb-1.5 px-2 text-[11px] text-ink-muted">
+								{#if g.folder === null}
+									<span class="text-ink-faint italic">no folder</span>
+								{:else}
+									{#each g.segments as seg, i (i)}
+										{#if i > 0}<span class="px-1 text-ink-ghost">/</span>{/if}
+										<span class={i === g.segments.length - 1 ? 'text-ink-muted' : 'text-ink-ghost'}>
+											{seg}
+										</span>
+									{/each}
+								{/if}
 							</h3>
 							{#if g.items.length === 0}
-								<div class="rounded-md border border-dashed border-rule px-4 py-3 font-mono text-[11px] text-ink-faint italic">
+								<div class="rounded-md border border-dashed border-rule px-3 py-2 text-[11px] text-ink-faint italic">
 									empty — drop here to ungroup
 								</div>
 							{:else}
 								<ul class="overflow-hidden rounded-md border border-rule divide-y divide-rule/60">
 									{#each g.items as c (c.id)}
+										{@const swatch = colorHex(c.color)}
 										<li
 											class="group/row flex items-center gap-3 bg-cream px-4 py-3 transition-colors hover:bg-cream-soft {dragId ===
 											c.id
@@ -221,11 +248,20 @@
 											ondragstart={(e) => onDragStart(e, c)}
 											ondragend={onDragEnd}
 										>
+											{#if swatch}
+												<span
+													class="block h-2.5 w-2.5 shrink-0 rounded-full"
+													style="background: {swatch}"
+													aria-hidden="true"
+												></span>
+											{:else}
+												<span class="block h-2.5 w-2.5 shrink-0 rounded-full border border-ink-ghost" aria-hidden="true"></span>
+											{/if}
 											<button
 												class="flex-1 cursor-pointer text-left"
 												onclick={() => openTab(c)}
 											>
-												<div class="font-display text-[16px] leading-tight text-ink">
+												<div class="text-[14px] leading-tight text-ink">
 													{c.name}
 												</div>
 												<div class="mt-0.5 font-mono text-[11px] text-ink-faint">
@@ -237,16 +273,16 @@
 													{/if}
 												</div>
 											</button>
-											<div class="flex items-center gap-3 opacity-0 transition-opacity group-hover/row:opacity-100">
+											<div class="flex items-center gap-3 text-[11px] opacity-0 transition-opacity group-hover/row:opacity-100">
 												<button
-													class="cursor-pointer font-mono text-[10px] tracking-widest text-ink-muted uppercase hover:text-rust"
+													class="cursor-pointer text-ink-muted hover:text-rust"
 													title="duplicate"
 													onclick={(e) => clone(c, e)}
 												>
 													clone
 												</button>
 												<button
-													class="cursor-pointer font-mono text-[10px] tracking-widest text-ink-muted uppercase hover:text-rust"
+													class="cursor-pointer text-ink-muted hover:text-rust"
 													onclick={(e) => {
 														e.stopPropagation();
 														view = { kind: 'edit', conn: c };
@@ -262,18 +298,18 @@
 						</section>
 					{/each}
 				{/if}
-				<div class="mt-6 border-t border-rule pt-5">
+				<div class="mt-5 border-t border-rule pt-4">
 					<button
-						class="cursor-pointer rounded-md bg-ink px-4 py-2 font-mono text-[11px] tracking-[0.18em] text-cream uppercase transition-colors hover:bg-rust"
+						class="cursor-pointer rounded-md bg-ink px-4 py-1.5 text-[12px] font-medium text-cream transition-colors hover:bg-rust"
 						onclick={() => (view = { kind: 'new' })}
 					>
-						+ new connection
+						+ New connection
 					</button>
 				</div>
 			{:else if view.kind === 'new'}
-				<ConnectionForm onSubmit={onCreate} submitLabel="create & open" />
+				<ConnectionForm onSubmit={onCreate} submitLabel="Create & open" />
 				<button
-					class="mt-4 cursor-pointer font-mono text-[10px] tracking-widest text-ink-faint uppercase hover:text-ink"
+					class="mt-3 cursor-pointer text-[11px] text-ink-faint hover:text-ink"
 					onclick={() => (view = { kind: 'picker' })}
 				>
 					← back
@@ -283,10 +319,10 @@
 					initial={view.conn}
 					onSubmit={onSaveEdit}
 					onDelete={onDeleteEdit}
-					submitLabel="save"
+					submitLabel="Save"
 				/>
 				<button
-					class="mt-4 cursor-pointer font-mono text-[10px] tracking-widest text-ink-faint uppercase hover:text-ink"
+					class="mt-3 cursor-pointer text-[11px] text-ink-faint hover:text-ink"
 					onclick={() => (view = { kind: 'picker' })}
 				>
 					← back

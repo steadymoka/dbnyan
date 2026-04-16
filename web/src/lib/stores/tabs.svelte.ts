@@ -6,6 +6,7 @@ export type Tab = {
 	id: string;
 	connectionId: string;
 	label: string;
+	color: string | null;
 	// per-tab UI state, persisted with the tab so refresh restores it
 	db: string | null;
 	table: string | null;
@@ -22,6 +23,7 @@ function emptyTab(c: Connection): Tab {
 		id: crypto.randomUUID(),
 		connectionId: c.id,
 		label: c.name,
+		color: c.color ?? null,
 		db: c.database ?? null,
 		table: null,
 		view: 'browse',
@@ -46,6 +48,7 @@ class TabsStore {
 				id: t.id,
 				connectionId: t.connectionId,
 				label: t.label,
+				color: t.color ?? null,
 				db: t.db ?? null,
 				table: t.table ?? null,
 				view: t.view ?? 'browse',
@@ -103,20 +106,24 @@ class TabsStore {
 	}
 
 	/** Mutate per-tab UI state by tab id. */
-	update(tabId: string, patch: Partial<Pick<Tab, 'db' | 'table' | 'view' | 'sql' | 'label'>>) {
+	update(
+		tabId: string,
+		patch: Partial<Pick<Tab, 'db' | 'table' | 'view' | 'sql' | 'label' | 'color'>>
+	) {
 		const t = this.tabs.find((x) => x.id === tabId);
 		if (!t) return;
 		Object.assign(t, patch);
 		this.save();
 	}
 
-	/** Drop tabs whose backing connection no longer exists; refresh labels. */
+	/** Drop tabs whose backing connection no longer exists; refresh labels + color. */
 	syncWithConnections(saved: Connection[]) {
 		const byId = new Map(saved.map((c) => [c.id, c]));
 		this.tabs = this.tabs.filter((t) => {
 			const c = byId.get(t.connectionId);
 			if (!c) return false;
 			t.label = c.name;
+			t.color = c.color ?? null;
 			return true;
 		});
 		if (this.activeId && !this.tabs.find((t) => t.id === this.activeId)) {

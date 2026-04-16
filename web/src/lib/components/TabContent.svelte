@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { api, type ColumnInfo, type Connection, type RowSet, type TableInfo } from '$lib/api';
 	import { tabs } from '$lib/stores/tabs.svelte';
+	import { colorHex } from '$lib/colors';
 	import RowGrid from './RowGrid.svelte';
 	import QueryView from './QueryView.svelte';
 
@@ -166,12 +167,25 @@
 	<aside class="flex w-[260px] shrink-0 flex-col border-r border-rule bg-cream-soft">
 		<header class="border-b border-rule px-4 py-4">
 			{#if conn}
-				<div class="font-display text-[18px] leading-tight tracking-tight text-ink">
-					{conn.name}
+				{@const swatch = colorHex(conn.color)}
+				<div class="flex items-center gap-2.5">
+					{#if swatch}
+						<span
+							class="block h-2.5 w-2.5 shrink-0 rounded-full"
+							style="background: {swatch}"
+							aria-hidden="true"
+						></span>
+					{/if}
+					<div class="font-display text-[18px] leading-tight tracking-tight text-ink">
+						{conn.name}
+					</div>
 				</div>
 				<div class="mt-1 font-mono text-[11px] text-ink-faint">
 					{conn.username}@{conn.host}:{conn.port}
 				</div>
+				{#if conn.folder}
+					<div class="mt-0.5 font-mono text-[10px] text-ink-ghost">{conn.folder}</div>
+				{/if}
 			{:else if connErr}
 				<pre class="font-mono text-[11px] whitespace-pre-wrap text-crimson">{connErr}</pre>
 			{:else}
