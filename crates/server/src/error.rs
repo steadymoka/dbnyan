@@ -26,7 +26,7 @@ where
         tracing::error!(error = ?err, "handler error");
         Self {
             status: StatusCode::INTERNAL_SERVER_ERROR,
-            message: err.to_string(),
+            message: format!("{err:#}"),
         }
     }
 }
