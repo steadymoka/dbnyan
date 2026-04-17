@@ -289,7 +289,10 @@
 						{conn.name}
 					</div>
 				</div>
-				<div class="mt-1 font-mono text-[11px] text-ink-faint">
+				<div
+					class="mt-1 truncate font-mono text-[11px] text-ink-faint"
+					title="{conn.username}@{conn.host}:{conn.port}"
+				>
 					{conn.username}@{conn.host}:{conn.port}
 				</div>
 				{#if conn.folder}
