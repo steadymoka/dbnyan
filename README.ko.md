@@ -201,7 +201,6 @@ dbnyan/
 - SSH 비번 인증 미지원 — 키 또는 `ssh-agent` 사용
 - AI 응답 비스트리밍 (5~15초 대기)
 - 비번 평문 저장 (Keychain 연동 예정)
-- 셀 클릭 시 전체 값 모달 없음 — `title` tooltip으로 truncate만
 - 자동 테스트 없음 — 백엔드 단위 테스트 후보 명확 (`query::is_select_like`, `connection` CRUD, `history` CRUD); UI는 수동 스모크 테스트
 
 ---

@@ -201,7 +201,6 @@ The split keeps the door open for shipping as a Tauri desktop app later: the Sve
 - SSH password auth not supported — use a key or `ssh-agent`
 - AI responses are not streamed (5–15 s wait for the full text)
 - Plaintext password storage (Keychain integration pending)
-- No cell-expand modal yet — long values are truncated with a `title` tooltip
 - No automated tests — backend has obvious unit-test candidates (`query::is_select_like`, `connection` CRUD, `history` CRUD); UI relies on manual smoke testing
 
 ---
