@@ -20,18 +20,47 @@ use tokio::time::{sleep, timeout, Instant};
 pub struct Tunnel {
     pub local_port: u16,
     child: Child,
+    /// Process-group id of `child`. Set via `spawn_in_new_process_group` so we
+    /// can SIGTERM the whole group — `aws ssm` and `ssh` both fork grandchildren
+    /// (session-manager-plugin, auth helpers) that would otherwise be reparented
+    /// to launchd/init and hold onto the forwarded port after the direct child
+    /// dies.
+    pgid: Option<i32>,
 }
 
 impl Tunnel {
     pub(crate) fn new(local_port: u16, child: Child) -> Self {
-        Self { local_port, child }
+        let pgid = child.id().map(|p| p as i32);
+        Self {
+            local_port,
+            child,
+            pgid,
+        }
     }
 }
 
 impl Drop for Tunnel {
     fn drop(&mut self) {
-        // Best-effort: signal the subprocess. start_kill is non-blocking.
+        #[cfg(unix)]
+        if let Some(pgid) = self.pgid {
+            // Negative pid ⇒ kill the whole process group.
+            // SAFETY: libc::kill with a valid pgid and signal number; no UB.
+            unsafe {
+                libc::kill(-pgid, libc::SIGTERM);
+            }
+        }
+        // Belt & suspenders: SIGKILL the direct child too, in case the group
+        // signal was missed (e.g. pid recycled) or the child ignored SIGTERM.
         let _ = self.child.start_kill();
+    }
+}
+
+/// Put the spawned child into a new process group (pgid = child pid) on Unix.
+/// No-op elsewhere. Call before `spawn`.
+pub(crate) fn spawn_in_new_process_group(_cmd: &mut Command) {
+    #[cfg(unix)]
+    {
+        _cmd.process_group(0);
     }
 }
 
@@ -75,6 +104,7 @@ pub async fn open(ssh: &SshConfig, target_host: &str, target_port: u16) -> Resul
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
+    spawn_in_new_process_group(&mut cmd);
 
     let mut child = cmd.spawn().context("spawn `ssh`")?;
 

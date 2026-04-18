@@ -35,6 +35,7 @@ async fn main() -> Result<()> {
         sessions: SessionManager::new(),
     };
 
+    let shutdown_sessions = state.sessions.clone();
     let api = Router::new()
         .route("/health", get(health))
         .merge(connections::router())
@@ -67,8 +68,35 @@ async fn main() -> Result<()> {
     tracing::info!(%addr, "dbnyan listening");
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
+
+    // Graceful shutdown returned → no more in-flight requests hold Arc<Session>.
+    // Clearing the registry drops every Tunnel, which kills its process group.
+    shutdown_sessions.shutdown_all().await;
     Ok(())
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        let _ = tokio::signal::ctrl_c().await;
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        use tokio::signal::unix::{signal, SignalKind};
+        if let Ok(mut sig) = signal(SignalKind::terminate()) {
+            sig.recv().await;
+        }
+    };
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => tracing::info!("received Ctrl-C, shutting down"),
+        _ = terminate => tracing::info!("received SIGTERM, shutting down"),
+    }
 }
 
 async fn health(State(state): State<AppState>) -> Json<Value> {

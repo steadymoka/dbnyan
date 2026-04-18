@@ -14,3 +14,6 @@ sqlx = { workspace = true }
 chrono = { workspace = true }
 dirs = { workspace = true }
 uuid = { workspace = true }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

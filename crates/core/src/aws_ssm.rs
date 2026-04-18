@@ -9,7 +9,10 @@
 //! - `aws` CLI v2 (logged in / configured)
 //! - `session-manager-plugin` (installed separately)
 
-use crate::tunnel::{drain_stderr, find_free_port, wait_for_first_byte, wait_for_port, Tunnel};
+use crate::tunnel::{
+    drain_stderr, find_free_port, spawn_in_new_process_group, wait_for_first_byte, wait_for_port,
+    Tunnel,
+};
 use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::net::{Ipv4Addr, SocketAddr, TcpListener};
@@ -72,6 +75,7 @@ pub async fn open(ssm: &SsmConfig, target_host: &str, target_port: u16) -> Resul
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null()) // SSM logs session info to stdout; we don't need it
         .stderr(Stdio::piped());
+    spawn_in_new_process_group(&mut cmd);
 
     let mut child = cmd
         .spawn()

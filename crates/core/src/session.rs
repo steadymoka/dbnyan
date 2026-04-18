@@ -62,6 +62,18 @@ impl SessionManager {
     pub async fn is_active(&self, connection_id: &str) -> bool {
         self.sessions.read().await.contains_key(connection_id)
     }
+
+    /// Drop every active session. Each `Session` drops its `Tunnel`, which
+    /// SIGTERMs the aws/ssh process group — ensuring `session-manager-plugin`
+    /// and similar grandchildren don't linger past server shutdown.
+    pub async fn shutdown_all(&self) {
+        let mut map = self.sessions.write().await;
+        let n = map.len();
+        map.clear();
+        if n > 0 {
+            tracing::info!("closed {n} db session(s) on shutdown");
+        }
+    }
 }
 
 async fn open(conn: &Connection) -> Result<Session> {
