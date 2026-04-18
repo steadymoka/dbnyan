@@ -17,7 +17,9 @@ use axum::routing::post;
 use axum::{Json, Router};
 use dbnyan_core::{connection, mysql};
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use std::process::Stdio;
+use std::sync::OnceLock;
 use tokio::process::Command;
 
 pub fn router() -> Router<AppState> {
@@ -57,7 +59,7 @@ async fn chat(
         body.message.clone()
     };
 
-    let mut cmd = Command::new("claude");
+    let mut cmd = Command::new(claude_bin());
     cmd.arg("-p")
         .arg(&prompt)
         .arg("--output-format")
@@ -145,4 +147,33 @@ async fn build_initial_prompt(
     }
 
     format!("{sys}\n---\n\n{user_message}")
+}
+
+/// Resolve the `claude` CLI path. Portless / launchd / IDE-spawned servers
+/// often inherit a minimal PATH that omits user-local bin dirs, which makes
+/// `Command::new("claude")` fail with ENOENT. We search PATH first, then fall
+/// back to well-known install locations.
+fn claude_bin() -> PathBuf {
+    static CACHED: OnceLock<PathBuf> = OnceLock::new();
+    CACHED
+        .get_or_init(|| {
+            if let Ok(path) = std::env::var("PATH") {
+                for dir in path.split(':').filter(|s| !s.is_empty()) {
+                    let p = std::path::Path::new(dir).join("claude");
+                    if p.is_file() {
+                        return p;
+                    }
+                }
+            }
+            if let Ok(home) = std::env::var("HOME") {
+                for rel in [".local/bin/claude", ".claude/local/claude"] {
+                    let p = PathBuf::from(&home).join(rel);
+                    if p.is_file() {
+                        return p;
+                    }
+                }
+            }
+            PathBuf::from("claude")
+        })
+        .clone()
 }
