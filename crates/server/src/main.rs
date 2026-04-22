@@ -1,4 +1,5 @@
 mod chat;
+mod chat_stream;
 mod connections;
 mod error;
 mod runtime;

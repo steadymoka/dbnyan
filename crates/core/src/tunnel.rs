@@ -57,7 +57,7 @@ impl Drop for Tunnel {
 
 /// Put the spawned child into a new process group (pgid = child pid) on Unix.
 /// No-op elsewhere. Call before `spawn`.
-pub(crate) fn spawn_in_new_process_group(_cmd: &mut Command) {
+pub fn spawn_in_new_process_group(_cmd: &mut Command) {
     #[cfg(unix)]
     {
         _cmd.process_group(0);
@@ -162,7 +162,7 @@ pub(crate) async fn wait_for_first_byte(port: u16, total: Duration) -> Result<()
     ))
 }
 
-pub(crate) async fn drain_stderr(child: &mut Child) -> String {
+pub async fn drain_stderr(child: &mut Child) -> String {
     let Some(mut stderr) = child.stderr.take() else {
         return String::new();
     };

@@ -23,17 +23,22 @@ use std::sync::OnceLock;
 use tokio::process::Command;
 
 pub fn router() -> Router<AppState> {
-    Router::new().route("/connections/{id}/chat", post(chat))
+    Router::new()
+        .route("/connections/{id}/chat", post(chat))
+        .route(
+            "/connections/{id}/chat/stream",
+            post(crate::chat_stream::chat_stream),
+        )
 }
 
 #[derive(Deserialize)]
-struct ChatBody {
-    message: String,
+pub(crate) struct ChatBody {
+    pub(crate) message: String,
     /// `None` → start a new session (system context will be prepended).
     /// `Some(sid)` → resume; only `message` is sent to claude.
-    session_id: Option<String>,
+    pub(crate) session_id: Option<String>,
     /// Currently-selected database in the UI; used to scope schema context.
-    database: Option<String>,
+    pub(crate) database: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -53,11 +58,7 @@ async fn chat(
         .await?
         .ok_or_else(|| AppError::not_found("connection not found"))?;
 
-    let prompt = if body.session_id.is_none() {
-        build_initial_prompt(&state, &conn, body.database.as_deref(), &body.message).await
-    } else {
-        body.message.clone()
-    };
+    let prompt = build_prompt(&state, &conn, &body).await;
 
     let mut cmd = Command::new(claude_bin());
     cmd.arg("-p")
@@ -67,11 +68,7 @@ async fn chat(
     if let Some(sid) = &body.session_id {
         cmd.arg("--resume").arg(sid);
     }
-    cmd.stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .env_remove("ANTHROPIC_API_KEY")
-        .env_remove("ANTHROPIC_AUTH_TOKEN");
+    configure_claude_cmd(&mut cmd);
 
     let output = cmd
         .output()
@@ -117,12 +114,18 @@ async fn chat(
     }))
 }
 
-async fn build_initial_prompt(
+/// Produce the prompt sent to claude. On the first turn we prepend system
+/// context (connection info, current database, table list); on resumes we pass
+/// only the user message since claude restores history via `--resume`.
+pub(crate) async fn build_prompt(
     state: &AppState,
     conn: &dbnyan_core::connection::Connection,
-    selected_db: Option<&str>,
-    user_message: &str,
+    body: &ChatBody,
 ) -> String {
+    if body.session_id.is_some() {
+        return body.message.clone();
+    }
+
     let mut sys = format!(
         "You are a SQL assistant for the MySQL connection \"{}\" \
          ({}@{}:{}).\n\
@@ -131,7 +134,7 @@ async fn build_initial_prompt(
         conn.name, conn.username, conn.host, conn.port
     );
 
-    let db = selected_db.or(conn.database.as_deref());
+    let db = body.database.as_deref().or(conn.database.as_deref());
     if let Some(db) = db {
         sys.push_str(&format!("\nCurrent database: `{db}`\n"));
         if let Ok(session) = state.sessions.get_or_open(conn).await {
@@ -146,14 +149,25 @@ async fn build_initial_prompt(
         }
     }
 
-    format!("{sys}\n---\n\n{user_message}")
+    format!("{sys}\n---\n\n{}", body.message)
+}
+
+/// Apply env + stdio defaults shared by both the blocking and streaming chat
+/// handlers: null stdin, piped stdout/stderr, and drop ANTHROPIC_* so the
+/// subprocess uses Claude Code subscription auth rather than API billing.
+pub(crate) fn configure_claude_cmd(cmd: &mut Command) {
+    cmd.stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .env_remove("ANTHROPIC_API_KEY")
+        .env_remove("ANTHROPIC_AUTH_TOKEN");
 }
 
 /// Resolve the `claude` CLI path. Portless / launchd / IDE-spawned servers
 /// often inherit a minimal PATH that omits user-local bin dirs, which makes
 /// `Command::new("claude")` fail with ENOENT. We search PATH first, then fall
 /// back to well-known install locations.
-fn claude_bin() -> PathBuf {
+pub(crate) fn claude_bin() -> PathBuf {
     static CACHED: OnceLock<PathBuf> = OnceLock::new();
     CACHED
         .get_or_init(|| {

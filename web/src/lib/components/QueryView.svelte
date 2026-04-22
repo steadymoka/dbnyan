@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { api, type Favorite, type HistoryEntry, type QueryResult } from '$lib/api';
+	import ChatPanel from '$lib/chat/ChatPanel.svelte';
 	import { tabs as tabsStore } from '$lib/stores/tabs.svelte';
 	import RowGrid from './RowGrid.svelte';
 	import SqlEditor from './SqlEditor.svelte';
-	import SqlGenerator from './SqlGenerator.svelte';
 
 	type Props = {
 		tabId: string;
@@ -148,8 +148,6 @@
 
 <div class="flex h-full overflow-hidden">
 	<div class="flex flex-1 flex-col overflow-hidden">
-		<SqlGenerator {connectionId} {database} onUseSql={setSql} />
-
 		<!-- editor (active query) with floating Run -->
 		<div
 			class="relative h-48 shrink-0 border-b border-rule"
@@ -217,9 +215,11 @@
 		</div>
 	</div>
 
-	<aside class="flex w-[280px] shrink-0 flex-col border-l border-rule bg-cream-soft">
-		<!-- favorites -->
-		<section class="flex max-h-[40%] flex-col overflow-hidden border-b border-rule">
+	<aside class="flex w-[580px] shrink-0 border-l border-rule">
+		<ChatPanel {connectionId} {database} {tabId} onUseSql={setSql} />
+		<div class="flex w-[240px] shrink-0 flex-col border-l border-rule bg-cream-soft">
+			<!-- favorites -->
+			<section class="flex max-h-[40%] flex-col overflow-hidden border-b border-rule">
 			<header class="flex items-center justify-between border-b border-rule px-4 py-3">
 				<span class="font-mono text-[10px] tracking-[0.22em] text-ink-faint uppercase">
 					Favorites
@@ -336,6 +336,7 @@
 					</div>
 				{/each}
 			{/if}
+		</div>
 		</div>
 	</aside>
 </div>

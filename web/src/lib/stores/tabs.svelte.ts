@@ -1,4 +1,5 @@
 import { api, type Connection } from '$lib/api';
+import { chat as chatStore } from './chat.svelte';
 
 export type View = 'browse' | 'query';
 
@@ -118,6 +119,7 @@ class TabsStore {
 			this.activeId = this.tabs[idx]?.id ?? this.tabs[idx - 1]?.id ?? null;
 		}
 		this.save();
+		chatStore.dropTab(tabId);
 		const stillInUse = this.tabs.some((t) => t.connectionId === closing.connectionId);
 		if (!stillInUse) {
 			api.sessions.close(closing.connectionId).catch(() => {

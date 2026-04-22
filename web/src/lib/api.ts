@@ -209,6 +209,96 @@ export const api = {
 				text: string;
 				is_error: boolean;
 				duration_ms: number | null;
-			}>
+			}>,
+		stream: async (
+			id: string,
+			body: { message: string; session_id?: string | null; database?: string | null },
+			h: ChatStreamHandlers
+		): Promise<void> => {
+			let res: Response;
+			try {
+				res = await fetch(`/api/connections/${enc(id)}/chat/stream`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+					body: JSON.stringify(body),
+					signal: h.signal
+				});
+			} catch (e) {
+				if ((e as DOMException)?.name === 'AbortError') return;
+				h.onError?.(e instanceof Error ? e.message : String(e));
+				return;
+			}
+			if (!res.ok || !res.body) {
+				const text = await res.text().catch(() => '');
+				let msg = `${res.status}`;
+				try {
+					msg = JSON.parse(text).error ?? text;
+				} catch {
+					msg = text || msg;
+				}
+				h.onError?.(msg);
+				return;
+			}
+			const reader = res.body.getReader();
+			const decoder = new TextDecoder();
+			let buf = '';
+			try {
+				while (true) {
+					const { value, done } = await reader.read();
+					if (done) break;
+					buf += decoder.decode(value, { stream: true });
+					let idx: number;
+					while ((idx = buf.indexOf('\n\n')) !== -1) {
+						const frame = buf.slice(0, idx);
+						buf = buf.slice(idx + 2);
+						dispatchFrame(frame, h);
+					}
+				}
+			} catch (e) {
+				if ((e as DOMException)?.name !== 'AbortError') {
+					h.onError?.(e instanceof Error ? e.message : String(e));
+				}
+			}
+		}
 	}
 };
+
+export type ChatStreamHandlers = {
+	onSession?: (sessionId: string) => void;
+	onDelta?: (text: string) => void;
+	onDone?: (durationMs?: number) => void;
+	onError?: (message: string) => void;
+	signal?: AbortSignal;
+};
+
+function dispatchFrame(frame: string, h: ChatStreamHandlers) {
+	let name = 'message';
+	const dataLines: string[] = [];
+	for (const line of frame.split('\n')) {
+		if (line.startsWith('event:')) name = line.slice(6).trim();
+		else if (line.startsWith('data:')) dataLines.push(line.slice(5).trim());
+		// ignore comments (:) and keep-alive
+	}
+	if (dataLines.length === 0) return;
+	const raw = dataLines.join('\n');
+	let data: Record<string, unknown> = {};
+	try {
+		data = JSON.parse(raw);
+	} catch {
+		/* ignore unparseable frame */
+	}
+	switch (name) {
+		case 'session':
+			if (typeof data.session_id === 'string') h.onSession?.(data.session_id);
+			break;
+		case 'text_delta':
+			if (typeof data.delta === 'string') h.onDelta?.(data.delta);
+			break;
+		case 'done':
+			h.onDone?.(typeof data.duration_ms === 'number' ? data.duration_ms : undefined);
+			break;
+		case 'error':
+			h.onError?.(typeof data.message === 'string' ? data.message : 'unknown error');
+			break;
+	}
+}

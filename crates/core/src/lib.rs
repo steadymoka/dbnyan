@@ -5,10 +5,14 @@ pub mod connection;
 pub mod favorites;
 pub mod history;
 pub mod mysql;
+pub mod process;
 pub mod query;
 pub mod session;
 pub mod ssh;
 pub mod tunnel;
+
+pub use process::ChildGuard;
+pub use tunnel::{drain_stderr, spawn_in_new_process_group};
 
 use anyhow::{Context, Result};
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions};
