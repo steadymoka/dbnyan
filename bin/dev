@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Development mode: Rust server (port 3939) + SvelteKit dev server (port 5173).
-# Visit http://localhost:5173 — Vite proxies /api/* to the Rust backend.
+# Development mode: Rust server (port 3939) + SvelteKit dev server.
+# By default vite binds :5173; when wrapped by `portless` it picks the port
+# for us via $PORT and routes dbnyan-dev.localhost:1355 → vite.
 set -e
 cd "$(dirname "$0")/.."
 
@@ -22,6 +23,7 @@ cleanup() {
 }
 trap cleanup INT TERM
 
-echo "→ starting SvelteKit dev (foreground)…"
+VITE_PORT="${PORT:-5173}"
+echo "→ starting SvelteKit dev @ http://127.0.0.1:${VITE_PORT}"
 cd web
-exec bun run dev --open
+exec bun run dev --port "$VITE_PORT"
