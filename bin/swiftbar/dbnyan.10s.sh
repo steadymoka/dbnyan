@@ -35,7 +35,7 @@ case "${1:-}" in
     exit 0
     ;;
   stop)
-    pkill -f "portless $NAME" 2>/dev/null
+    pkill -f "portless $NAME " 2>/dev/null
     pkill -f "target/release/dbnyan-server" 2>/dev/null
     exit 0
     ;;
@@ -50,7 +50,7 @@ case "${1:-}" in
     exit 0
     ;;
   dev-stop)
-    pkill -f "portless $DEV_NAME" 2>/dev/null
+    pkill -f "portless $DEV_NAME " 2>/dev/null
     pkill -f "target/debug/dbnyan-server" 2>/dev/null
     pkill -f "node_modules/.bin/vite" 2>/dev/null
     if [ -f "$DEV_PIDFILE" ]; then
@@ -68,7 +68,7 @@ esac
 HEALTH="$(curl -sk --max-time 2 -o /dev/null -w '%{http_code}' "$URL/api/health" 2>/dev/null || echo 000)"
 if [[ "$HEALTH" =~ ^2 ]]; then
   PROD_STATUS="up"
-elif pgrep -f "portless $NAME" >/dev/null; then
+elif pgrep -f "portless $NAME " >/dev/null; then
   PROD_STATUS="starting"
 else
   PROD_STATUS="down"
@@ -80,7 +80,7 @@ fi
 DEV_HEALTH="$(curl -sk --max-time 2 -o /dev/null -w '%{http_code}' "$DEV_URL/api/health" 2>/dev/null || echo 000)"
 if [[ "$DEV_HEALTH" =~ ^2 ]]; then
   DEV_STATUS="up"
-elif pgrep -f "portless $DEV_NAME" >/dev/null \
+elif pgrep -f "portless $DEV_NAME " >/dev/null \
   || pgrep -f "target/debug/dbnyan-server" >/dev/null \
   || pgrep -f "node_modules/.bin/vite" >/dev/null; then
   DEV_STATUS="starting"

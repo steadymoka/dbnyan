@@ -24,6 +24,10 @@ cleanup() {
 trap cleanup INT TERM
 
 VITE_PORT="${PORT:-5173}"
-echo "→ starting SvelteKit dev @ http://127.0.0.1:${VITE_PORT}"
+# Vite's default `--host` (localhost) resolves to IPv6 ::1 first on macOS,
+# so portless — which connects via IPv4 127.0.0.1 — can't reach it and
+# returns 502. Passing --host pins it to the interface portless expects.
+VITE_HOST="${HOST:-localhost}"
+echo "→ starting SvelteKit dev @ http://${VITE_HOST}:${VITE_PORT}"
 cd web
-exec bun run dev --port "$VITE_PORT"
+exec bun run dev --port "$VITE_PORT" --host "$VITE_HOST"
